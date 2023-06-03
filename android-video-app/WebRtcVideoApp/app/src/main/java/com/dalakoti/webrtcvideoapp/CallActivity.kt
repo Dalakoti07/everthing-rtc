@@ -35,14 +35,11 @@ class CallActivity : AppCompatActivity(), NewMessageInterface {
     private val rtcAudioManager by lazy { RTCAudioManager.create(this) }
     private var isSpeakerMode = true
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityCallBinding.inflate(layoutInflater)
         setContentView(binding.root)
         init()
-
-
     }
 
     private fun init(){
@@ -58,22 +55,18 @@ class CallActivity : AppCompatActivity(), NewMessageInterface {
                     "sdpMLineIndex" to p0?.sdpMLineIndex,
                     "sdpCandidate" to p0?.sdp
                 )
-
                 socketRepository?.sendMessageToSocket(
                     MessageModel("ice_candidate",userName,target,candidate)
                 )
-
             }
 
             override fun onAddStream(p0: MediaStream?) {
                 super.onAddStream(p0)
                 p0?.videoTracks?.get(0)?.addSink(binding.remoteView)
                 Log.d(TAG, "onAddStream: $p0")
-
             }
         })
         rtcAudioManager.setDefaultAudioDevice(RTCAudioManager.AudioDevice.SPEAKER_PHONE)
-
 
         binding.apply {
             callBtn.setOnClickListener {
@@ -118,9 +111,7 @@ class CallActivity : AppCompatActivity(), NewMessageInterface {
                     isSpeakerMode = true
                     audioOutputButton.setImageResource(R.drawable.ic_baseline_speaker_up_24)
                     rtcAudioManager.setDefaultAudioDevice(RTCAudioManager.AudioDevice.SPEAKER_PHONE)
-
                 }
-
             }
             endCallButton.setOnClickListener {
                 setCallLayoutGone()
@@ -133,7 +124,7 @@ class CallActivity : AppCompatActivity(), NewMessageInterface {
     }
 
     override fun onNewMessage(message: MessageModel) {
-        Log.d(TAG, "onNewMessage: $message")
+        Log.d(TAG, "onNewMessage: $message ${Thread.currentThread()}")
         when(message.type){
             "call_response"->{
                 if (message.data == "user is not online"){
@@ -152,14 +143,10 @@ class CallActivity : AppCompatActivity(), NewMessageInterface {
                             rtcClient?.startLocalVideo(localView)
                             rtcClient?.call(targetUserNameEt.text.toString())
                         }
-
-
                     }
-
                 }
             }
             "answer_received" ->{
-
                 val session = SessionDescription(
                     SessionDescription.Type.ANSWER,
                     message.data.toString()
