@@ -1,8 +1,11 @@
 package com.dalakoti.webrtcvideoapp
 
 import android.app.Application
+import android.util.Log
 import com.dalakoti.webrtcvideoapp.models.MessageModel
 import org.webrtc.*
+
+private const val TAG = "RtcClient"
 
 class RTCClient(
     private val application: Application,
@@ -41,6 +44,7 @@ class RTCClient(
     private val localVideoSource by lazy { peerConnectionFactory.createVideoSource(false) }
     private val localAudioSource by lazy { peerConnectionFactory.createAudioSource(MediaConstraints()) }
     private var videoCapturer: CameraVideoCapturer? = null
+    // keeping track of local video and audio track
     private var localAudioTrack: AudioTrack? = null
     private var localVideoTrack: VideoTrack? = null
 
@@ -83,13 +87,16 @@ class RTCClient(
     }
 
     fun startLocalVideo(surface: SurfaceViewRenderer) {
+        Log.d(TAG, "startLocalVideo called ....")
         val surfaceTextureHelper =
             SurfaceTextureHelper.create(Thread.currentThread().name, eglContext.eglBaseContext)
         videoCapturer = getVideoCapturer(application)
         videoCapturer?.initialize(
             surfaceTextureHelper,
-            surface.context, localVideoSource.capturerObserver
+            surface.context,
+            localVideoSource.capturerObserver,
         )
+        // todo what is this for??
         videoCapturer?.startCapture(320, 240, 30)
         localVideoTrack = peerConnectionFactory.createVideoTrack("local_track", localVideoSource)
         localVideoTrack?.addSink(surface)
@@ -114,9 +121,9 @@ class RTCClient(
     }
 
     fun call(target: String) {
+        Log.d(TAG, "asking another person to JOIN; creating an offer ")
         val mediaConstraints = MediaConstraints()
         mediaConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
-
 
         peerConnection?.createOffer(object : SdpObserver {
             override fun onCreateSuccess(desc: SessionDescription?) {
@@ -160,6 +167,7 @@ class RTCClient(
     }
 
     fun onRemoteSessionReceived(session: SessionDescription) {
+        Log.d(TAG, "onRemoteSessionReceived: ")
         peerConnection?.setRemoteDescription(object : SdpObserver {
             override fun onCreateSuccess(p0: SessionDescription?) {
 
@@ -179,6 +187,7 @@ class RTCClient(
     }
 
     fun answer(target: String) {
+        Log.d(TAG, "answering to offer received ...")
         val constraints = MediaConstraints()
         constraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
 

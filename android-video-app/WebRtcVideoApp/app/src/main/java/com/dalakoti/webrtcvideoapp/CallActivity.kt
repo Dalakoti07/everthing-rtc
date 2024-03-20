@@ -49,6 +49,7 @@ class CallActivity : AppCompatActivity(), NewMessageInterface {
         rtcClient = RTCClient(application,userName!!,socketRepository!!, object : PeerConnectionObserver() {
             override fun onIceCandidate(p0: IceCandidate?) {
                 super.onIceCandidate(p0)
+                Log.d(TAG, "got ICE candidate ")
                 rtcClient?.addIceCandidate(p0)
                 val candidate = hashMapOf(
                     "sdpMid" to p0?.sdpMid,
@@ -127,6 +128,7 @@ class CallActivity : AppCompatActivity(), NewMessageInterface {
         Log.d(TAG, "onNewMessage: $message ${Thread.currentThread()}")
         when(message.type){
             "call_response"->{
+                Log.d(TAG, "onNewMessage: call_response")
                 if (message.data == "user is not online"){
                     //user is not reachable
                     runOnUiThread {
@@ -151,6 +153,7 @@ class CallActivity : AppCompatActivity(), NewMessageInterface {
                     SessionDescription.Type.ANSWER,
                     message.data.toString()
                 )
+                Log.d(TAG, "onNewMessage: answer received $session")
                 rtcClient?.onRemoteSessionReceived(session)
                 runOnUiThread {
                     binding.remoteViewLoading.visibility = View.GONE
@@ -158,6 +161,7 @@ class CallActivity : AppCompatActivity(), NewMessageInterface {
             }
             "offer_received" ->{
                 runOnUiThread {
+                    Log.d(TAG, "onNewMessage: offer received $message")
                     setIncomingCallLayoutVisible()
                     binding.incomingNameTV.text = "${message.name.toString()} is calling you"
                     binding.acceptButton.setOnClickListener {
@@ -183,16 +187,14 @@ class CallActivity : AppCompatActivity(), NewMessageInterface {
                     binding.rejectButton.setOnClickListener {
                         setIncomingCallLayoutGone()
                     }
-
                 }
-
             }
-
 
             "ice_candidate"->{
                 try {
                     val receivingCandidate = gson.fromJson(gson.toJson(message.data),
                         IceCandidateModel::class.java)
+                    Log.d(TAG, "onNewMessage: ice candidate $receivingCandidate" )
                     rtcClient?.addIceCandidate(IceCandidate(receivingCandidate.sdpMid,
                         Math.toIntExact(receivingCandidate.sdpMLineIndex.toLong()),receivingCandidate.sdpCandidate))
                 }catch (e:Exception){
