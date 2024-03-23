@@ -19,6 +19,7 @@ import com.dalakoti.webrtcvideoapp.utils.RTCAudioManager
 import com.google.gson.Gson
 import org.webrtc.IceCandidate
 import org.webrtc.MediaStream
+import org.webrtc.PeerConnection
 import org.webrtc.SessionDescription
 
 class CallActivity : AppCompatActivity(), NewMessageInterface {
@@ -65,6 +66,20 @@ class CallActivity : AppCompatActivity(), NewMessageInterface {
                 super.onAddStream(p0)
                 p0?.videoTracks?.get(0)?.addSink(binding.remoteView)
                 Log.d(TAG, "onAddStream: $p0")
+            }
+
+            override fun onIceConnectionChange(newState: PeerConnection.IceConnectionState?) {
+                when (newState) {
+                    PeerConnection.IceConnectionState.CONNECTED,
+                    PeerConnection.IceConnectionState.COMPLETED -> {
+                        // Peers are connected
+                        Log.d(TAG, "ICE Connection State: Connected ")
+                    }
+                    else -> {
+                        // Peers are not connected
+                        Log.d(TAG, "ICE Connection State: Connected")
+                    }
+                }
             }
         })
         rtcAudioManager.setDefaultAudioDevice(RTCAudioManager.AudioDevice.SPEAKER_PHONE)
