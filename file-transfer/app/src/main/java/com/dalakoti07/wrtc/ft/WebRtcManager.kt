@@ -15,12 +15,11 @@ import kotlin.math.log
 private const val TAG = "WebRtcManager"
 
 class WebRTCManager(
+    private var target: String,
     private val socketConnection: SocketConnection,
     private val userName: String,
 ): PeerConnection.Observer {
     // todo fix these hacks
-    private var target: String = "TARGET-XX"
-    private var isRemoteSessionReceived = false
 
     private val iceServers = listOf(
         PeerConnection.IceServer.builder("stun:iphone-stun.strato-iphone.de:3478")
@@ -174,7 +173,6 @@ class WebRTCManager(
 
     override fun onIceCandidate(p0: IceCandidate?) {
         Log.d(TAG, "onIceCandidate called ....")
-        if(!isRemoteSessionReceived) return
         addIceCandidate(p0)
         val candidate = hashMapOf(
             "sdpMid" to p0?.sdpMid,
@@ -216,7 +214,6 @@ class WebRTCManager(
     }
 
     fun onRemoteSessionReceived(session: SessionDescription) {
-        isRemoteSessionReceived = true
         peerConnection.setRemoteDescription(object : SdpObserver {
             override fun onCreateSuccess(p0: SessionDescription?) {
 

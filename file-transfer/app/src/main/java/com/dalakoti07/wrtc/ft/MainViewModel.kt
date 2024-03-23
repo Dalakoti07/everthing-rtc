@@ -65,10 +65,6 @@ class MainViewModel : ViewModel() {
                 sendMessageToUi("user already exists")
             }
             "user_stored" -> {
-                rtcManager = WebRTCManager(
-                    socketConnection = socketConnection,
-                    userName = message.data.toString(),
-                )
                 Log.d(TAG, "user stored in socket")
                 sendMessageToUi("user stored in socket")
                 _state.update {
@@ -86,6 +82,11 @@ class MainViewModel : ViewModel() {
                     return
                 }
                 // important to update target
+                rtcManager = WebRTCManager(
+                    socketConnection = socketConnection,
+                    userName = state.value.connectedAs,
+                    target = message.data.toString(),
+                )
                 rtcManager.updateTarget(message.data.toString())
                 sendMessageToUi("User is Connected to ${message.data}")
                 _state.update {
@@ -104,6 +105,13 @@ class MainViewModel : ViewModel() {
                     SessionDescription.Type.OFFER,
                     message.data.toString()
                 )
+                if(!::rtcManager.isInitialized){
+                    rtcManager = WebRTCManager(
+                        socketConnection = socketConnection,
+                        userName = state.value.connectedAs,
+                        target = message.name.toString(),
+                    )
+                }
                 rtcManager.onRemoteSessionReceived(session)
                 rtcManager.answerToOffer(message.name)
             }
