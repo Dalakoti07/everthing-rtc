@@ -55,8 +55,8 @@ function createConnection() {
   remoteConnection.ondatachannel = receiveChannelCallback;
 
   localConnection.createOffer().then(
-      gotDescription1,
-      onCreateSessionDescriptionError
+    gotDescription1,
+    onCreateSessionDescriptionError
   );
   startButton.disabled = true;
   closeButton.disabled = false;
@@ -98,8 +98,8 @@ function gotDescription1(desc) {
   trace('Offer from localConnection \n' + desc.sdp);
   remoteConnection.setRemoteDescription(desc);
   remoteConnection.createAnswer().then(
-      gotDescription2,
-      onCreateSessionDescriptionError
+    gotDescription2,
+    onCreateSessionDescriptionError
   );
 }
 
@@ -113,10 +113,10 @@ function iceCallback1(event) {
   trace('local ice callback');
   if (event.candidate) {
     remoteConnection.addIceCandidate(
-        event.candidate
+      event.candidate
     ).then(
-        onAddIceCandidateSuccess,
-        onAddIceCandidateError
+      onAddIceCandidateSuccess,
+      onAddIceCandidateError
     );
     trace('Local ICE candidate: \n' + event.candidate.candidate);
   }
@@ -126,10 +126,10 @@ function iceCallback2(event) {
   trace('remote ice callback');
   if (event.candidate) {
     localConnection.addIceCandidate(
-        event.candidate
+      event.candidate
     ).then(
-        onAddIceCandidateSuccess,
-        onAddIceCandidateError
+      onAddIceCandidateSuccess,
+      onAddIceCandidateError
     );
     trace('Remote ICE candidate: \n ' + event.candidate.candidate);
   }
