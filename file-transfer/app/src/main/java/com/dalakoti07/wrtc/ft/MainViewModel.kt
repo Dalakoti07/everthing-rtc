@@ -79,6 +79,7 @@ class MainViewModel : ViewModel() {
                 }
             }
             "transfer_response" -> {
+                Log.d(TAG, "transfer_response: ")
                 // user is online / offline
                 if (message.data == null) {
                     sendMessageToUi("user is not available")
@@ -98,7 +99,7 @@ class MainViewModel : ViewModel() {
                 )
             }
             "offer_received" -> {
-                // todo make sure this works on other client
+                Log.d(TAG, "offer_received ")
                 val session = SessionDescription(
                     SessionDescription.Type.OFFER,
                     message.data.toString()
@@ -151,7 +152,7 @@ class MainViewModel : ViewModel() {
                 socketConnection.initSocket(actions.name)
             }
             is MainActions.AcceptIncomingConnection -> {
-
+                // todo do add view for confirmation, and then take further actions
             }
             is MainActions.ConnectToUser -> {
                 socketConnection.sendMessageToSocket(
@@ -162,6 +163,9 @@ class MainViewModel : ViewModel() {
                         data = null,
                     )
                 )
+            }
+            is MainActions.SendChatMessage->{
+                rtcManager.sendMessage(actions.msg)
             }
         }
     }

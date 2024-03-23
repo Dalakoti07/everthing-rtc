@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,6 +53,9 @@ fun MainScreen() {
     var connectTo by remember {
         mutableStateOf("")
     }
+    var chatMessage by remember {
+        mutableStateOf("")
+    }
     val viewModel = viewModel(modelClass = MainViewModel::class.java)
     val state = viewModel.state.collectAsState()
     Box(
@@ -92,45 +96,75 @@ fun MainScreen() {
                 }
             },
         )
-        Row(
+        Column(
             modifier = Modifier.align(
                 Alignment.BottomCenter,
             ),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextField(
-                modifier = Modifier.weight(1f),
-                value = if(state.value.connectedAs.isNotEmpty()){
-                    connectTo
-                }else{
-                    enteredName
-                },
-                onValueChange = {
-                    if(state.value.connectedAs.isNotEmpty()){
-                        connectTo = it
-                    }else{
-                        enteredName = it
-                    }
-                },
-            )
-            Button(
-                onClick = {
-                    if(state.value.connectedAs.isNotEmpty()){
-                        viewModel.dispatchAction(
-                            MainActions.ConnectToUser(connectTo)
-                        )
-                    }else{
-                        viewModel.dispatchAction(
-                            MainActions.ConnectAs(enteredName)
-                        )
-                    }
-                },
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextField(
+                    modifier = Modifier.weight(1f),
+                    value = if (state.value.connectedAs.isNotEmpty()) {
+                        connectTo
+                    } else {
+                        enteredName
+                    },
+                    onValueChange = {
+                        if (state.value.connectedAs.isNotEmpty()) {
+                            connectTo = it
+                        } else {
+                            enteredName = it
+                        }
+                    },
+                )
+                Button(
+                    onClick = {
+                        if (state.value.connectedAs.isNotEmpty()) {
+                            viewModel.dispatchAction(
+                                MainActions.ConnectToUser(connectTo)
+                            )
+                        } else {
+                            viewModel.dispatchAction(
+                                MainActions.ConnectAs(enteredName)
+                            )
+                        }
+                    },
+                    modifier = Modifier.padding(
+                        start = 10.dp,
+                        end = 10.dp,
+                    ),
+                ) {
+                    Text(text = "GO")
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(
-                    start = 10.dp,
-                    end = 10.dp,
+                    top = 10.dp,
                 ),
             ) {
-                Text(text = "GO")
+                TextField(
+                    modifier = Modifier.weight(1f),
+                    value = chatMessage,
+                    onValueChange = {
+                        chatMessage = it
+                    },
+                )
+                Button(
+                    onClick = {
+                        viewModel.dispatchAction(
+                            MainActions.SendChatMessage(chatMessage)
+                        )
+                    },
+                    modifier = Modifier.padding(
+                        start = 10.dp,
+                        end = 10.dp,
+                    ),
+                ) {
+                    Text(text = "Chat")
+                }
             }
         }
     }

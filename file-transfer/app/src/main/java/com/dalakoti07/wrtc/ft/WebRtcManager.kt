@@ -9,6 +9,8 @@ import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
+import java.nio.ByteBuffer
+import kotlin.math.log
 
 private const val TAG = "WebRtcManager"
 
@@ -16,7 +18,9 @@ class WebRTCManager(
     private val socketConnection: SocketConnection,
     private val userName: String,
 ): PeerConnection.Observer {
+    // todo fix these hacks
     private var target: String = "TARGET-XX"
+    private var isRemoteSessionReceived = false
 
     private val iceServers = listOf(
         PeerConnection.IceServer.builder("stun:iphone-stun.strato-iphone.de:3478")
@@ -68,19 +72,35 @@ class WebRTCManager(
     }
 
     private fun createPeerConnection() {
-        val rtcConfig = PeerConnection.RTCConfiguration(iceServers)
         peerConnection =
-            peerConnectionFactory.createPeerConnection(rtcConfig, this)!!
+            peerConnectionFactory.createPeerConnection(iceServers, this)!!
     }
 
     private fun createDataChannel(label: String) {
         val init = DataChannel.Init()
         dataChannel = peerConnection.createDataChannel(label, init)
         dataChannel.registerObserver(object : DataChannel.Observer {
-            override fun onBufferedAmountChange(amount: Long) {}
-            override fun onStateChange() {}
-            override fun onMessage(buffer: DataChannel.Buffer?) {}
+            override fun onBufferedAmountChange(amount: Long) {
+                Log.d(TAG, "data channel onBufferedAmountChange: ")
+            }
+            override fun onStateChange() {
+                Log.d(TAG, "data channel onStateChange ")
+            }
+            override fun onMessage(buffer: DataChannel.Buffer?) {
+                Log.d(TAG, "onMessage: at line 86")
+                consumeDataChannelData(buffer)
+            }
         })
+    }
+
+    private fun consumeDataChannelData(buffer: DataChannel.Buffer?) {
+        buffer?: return
+        val data = buffer.data
+        val bytes = ByteArray(data.capacity())
+        data.get(bytes)
+        val message = String(bytes, Charsets.UTF_8)
+        // Handle the received message
+        Log.d(TAG, "Received message: $message")
     }
 
     fun createOffer(from: String, target: String){
@@ -90,6 +110,9 @@ class WebRTCManager(
                 peerConnection.setLocalDescription(object : SdpObserver {
                     override fun onCreateSuccess(desc: SessionDescription?) {
                         Log.d(TAG, "onCreateSuccess: .... using socket to notify peer")
+                    }
+                    override fun onSetSuccess() {
+                        Log.d(TAG, "onSetSuccess: ")
                         val offer = hashMapOf(
                             "sdp" to desc?.description,
                             "type" to desc?.type
@@ -100,9 +123,6 @@ class WebRTCManager(
                                 "create_offer", from, target, offer
                             )
                         )
-                    }
-                    override fun onSetSuccess() {
-                        Log.d(TAG, "onSetSuccess: ")
                     }
                     override fun onCreateFailure(error: String?) {
                         Log.d(TAG, "error in creating offer $error")
@@ -132,7 +152,18 @@ class WebRTCManager(
     override fun onSignalingChange(p0: PeerConnection.SignalingState?) {
     }
 
-    override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {
+    override fun onIceConnectionChange(newState: PeerConnection.IceConnectionState?) {
+        when (newState) {
+            PeerConnection.IceConnectionState.CONNECTED,
+            PeerConnection.IceConnectionState.COMPLETED -> {
+                // Peers are connected
+                Log.d(TAG, "ICE Connection State: Connected ")
+            }
+            else -> {
+                // Peers are not connected
+                Log.d(TAG, "ICE Connection State: Connected")
+            }
+        }
     }
 
     override fun onIceConnectionReceivingChange(p0: Boolean) {
@@ -142,6 +173,8 @@ class WebRTCManager(
     }
 
     override fun onIceCandidate(p0: IceCandidate?) {
+        Log.d(TAG, "onIceCandidate called ....")
+        if(!isRemoteSessionReceived) return
         addIceCandidate(p0)
         val candidate = hashMapOf(
             "sdpMid" to p0?.sdpMid,
@@ -163,13 +196,27 @@ class WebRTCManager(
     }
 
     override fun onDataChannel(p0: DataChannel?) {
+        Log.d(TAG, "onDataChannel: called for peers")
         remoteDataChannel = p0!!
+        remoteDataChannel.registerObserver(object: DataChannel.Observer{
+            override fun onBufferedAmountChange(p0: Long) {
+            }
+
+            override fun onStateChange() {
+            }
+
+            override fun onMessage(p0: DataChannel.Buffer?) {
+                Log.d(TAG, "onMessage: at line 196")
+                consumeDataChannelData(p0)
+            }
+        })
     }
 
     override fun onRenegotiationNeeded() {
     }
 
     fun onRemoteSessionReceived(session: SessionDescription) {
+        isRemoteSessionReceived = true
         peerConnection.setRemoteDescription(object : SdpObserver {
             override fun onCreateSuccess(p0: SessionDescription?) {
 
@@ -226,6 +273,12 @@ class WebRTCManager(
             }
 
         }, constraints)
+    }
+
+    fun sendMessage(msg: String) {
+        val buffer = ByteBuffer.wrap(msg.toByteArray(Charsets.UTF_8))
+        val binaryData = DataChannel.Buffer(buffer, false)
+        dataChannel.send(binaryData)
     }
 
 }
