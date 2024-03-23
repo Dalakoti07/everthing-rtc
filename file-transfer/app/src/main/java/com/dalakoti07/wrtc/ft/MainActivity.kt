@@ -7,9 +7,12 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -42,7 +45,11 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen() {
+    //todo saurabh rename them to yourName and peer's Name
     var enteredName by remember {
+        mutableStateOf("")
+    }
+    var connectTo by remember {
         mutableStateOf("")
     }
     val viewModel = viewModel(modelClass = MainViewModel::class.java)
@@ -68,6 +75,23 @@ fun MainScreen() {
                     10.dp
                 ),
         )
+        LazyColumn(
+            content = {
+                item {
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
+                items(state.value.messagesFromServer.size) {
+                    Text(
+                        text = state.value.messagesFromServer[it],
+                        modifier = Modifier
+                            .padding(
+                                top = 10.dp,
+                            )
+                            .fillMaxWidth()
+                    )
+                }
+            },
+        )
         Row(
             modifier = Modifier.align(
                 Alignment.BottomCenter,
@@ -76,23 +100,37 @@ fun MainScreen() {
         ) {
             TextField(
                 modifier = Modifier.weight(1f),
-                value = enteredName,
+                value = if(state.value.connectedAs.isNotEmpty()){
+                    connectTo
+                }else{
+                    enteredName
+                },
                 onValueChange = {
-                    enteredName = it
+                    if(state.value.connectedAs.isNotEmpty()){
+                        connectTo = it
+                    }else{
+                        enteredName = it
+                    }
                 },
             )
             Button(
                 onClick = {
-                    viewModel.dispatchAction(
-                        MainActions.ConnectAs(enteredName)
-                    )
+                    if(state.value.connectedAs.isNotEmpty()){
+                        viewModel.dispatchAction(
+                            MainActions.ConnectToUser(connectTo)
+                        )
+                    }else{
+                        viewModel.dispatchAction(
+                            MainActions.ConnectAs(enteredName)
+                        )
+                    }
                 },
                 modifier = Modifier.padding(
                     start = 10.dp,
                     end = 10.dp,
                 ),
             ) {
-                Text(text = "Send")
+                Text(text = "GO")
             }
         }
     }

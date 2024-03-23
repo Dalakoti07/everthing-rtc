@@ -67,6 +67,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
+    implementation("io.getstream:stream-webrtc-android:1.1.1")
     implementation("org.java-websocket:Java-WebSocket:1.5.3")
     implementation("com.google.code.gson:gson:2.10")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
