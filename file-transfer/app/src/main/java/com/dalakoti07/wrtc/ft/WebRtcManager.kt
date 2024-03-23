@@ -53,7 +53,6 @@ class WebRTCManager(
     private lateinit var peerConnectionFactory: PeerConnectionFactory
     private lateinit var peerConnection: PeerConnection
     private lateinit var dataChannel: DataChannel
-    private lateinit var remoteDataChannel: DataChannel
 
     init {
         initializePeerConnectionFactory()
@@ -209,8 +208,7 @@ class WebRTCManager(
 
     override fun onDataChannel(p0: DataChannel?) {
         Log.d(TAG, "onDataChannel: called for peers")
-        remoteDataChannel = p0!!
-        remoteDataChannel.registerObserver(object: DataChannel.Observer{
+        p0!!.registerObserver(object: DataChannel.Observer{
             override fun onBufferedAmountChange(p0: Long) {
             }
 
