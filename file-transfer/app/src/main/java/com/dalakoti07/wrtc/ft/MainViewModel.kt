@@ -87,6 +87,7 @@ class MainViewModel : ViewModel() {
                     userName = state.value.connectedAs,
                     target = message.data.toString(),
                 )
+                consumeEventsFromRTC()
                 rtcManager.updateTarget(message.data.toString())
                 sendMessageToUi("User is Connected to ${message.data}")
                 _state.update {
@@ -111,6 +112,7 @@ class MainViewModel : ViewModel() {
                         userName = state.value.connectedAs,
                         target = message.name.toString(),
                     )
+                    consumeEventsFromRTC()
                 }
                 rtcManager.onRemoteSessionReceived(session)
                 rtcManager.answerToOffer(message.name)
@@ -140,6 +142,14 @@ class MainViewModel : ViewModel() {
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
+            }
+        }
+    }
+
+    private fun consumeEventsFromRTC() {
+        viewModelScope.launch {
+            rtcManager.messageStream.collectLatest {
+                sendMessageToUi(msg = it)
             }
         }
     }

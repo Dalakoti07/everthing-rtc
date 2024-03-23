@@ -1,6 +1,11 @@
 package com.dalakoti07.wrtc.ft
 
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
 import org.webrtc.DataChannel
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
@@ -19,7 +24,11 @@ class WebRTCManager(
     private val socketConnection: SocketConnection,
     private val userName: String,
 ): PeerConnection.Observer {
-    // todo fix these hacks
+
+    private val scope = CoroutineScope(Dispatchers.IO)
+    private val _messageStream = MutableSharedFlow<String>()
+    val messageStream: SharedFlow<String>
+        get() = _messageStream
 
     private val iceServers = listOf(
         PeerConnection.IceServer.builder("stun:iphone-stun.strato-iphone.de:3478")
@@ -100,6 +109,11 @@ class WebRTCManager(
         val message = String(bytes, Charsets.UTF_8)
         // Handle the received message
         Log.d(TAG, "Received message: $message")
+        scope.launch {
+            _messageStream.emit(
+                message
+            )
+        }
     }
 
     fun createOffer(from: String, target: String){
