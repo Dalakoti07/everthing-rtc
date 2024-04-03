@@ -21,6 +21,13 @@ import java.nio.ByteBuffer
 
 private const val TAG = "WebRtcManager"
 
+sealed class MessageType{
+    data class Info(val msg: String): MessageType()
+    data class MessageByMe(val msg: String): MessageType()
+    data class MessageByPeer(val msg: String): MessageType()
+    data object ConnectedToPeer : MessageType()
+}
+
 class WebRTCManager(
     private var target: String,
     private val socketConnection: SocketConnection,
@@ -28,8 +35,8 @@ class WebRTCManager(
 ): PeerConnection.Observer {
 
     private val scope = CoroutineScope(Dispatchers.IO)
-    private val _messageStream = MutableSharedFlow<String>()
-    val messageStream: SharedFlow<String>
+    private val _messageStream = MutableSharedFlow<MessageType>()
+    val messageStream: SharedFlow<MessageType>
         get() = _messageStream
 
     private val iceServers = listOf(
@@ -112,7 +119,9 @@ class WebRTCManager(
         Log.d(TAG, "Received message: $message")
         scope.launch {
             _messageStream.emit(
-                message
+                MessageType.MessageByPeer(
+                    message
+                )
             )
         }
     }
@@ -172,6 +181,9 @@ class WebRTCManager(
             PeerConnection.IceConnectionState.COMPLETED -> {
                 // Peers are connected
                 Log.d(TAG, "ICE Connection State: Connected ")
+                scope.launch {
+
+                }
             }
             else -> {
                 // Peers are not connected
@@ -289,6 +301,11 @@ class WebRTCManager(
     fun sendMessage(msg: String) {
         val buffer = ByteBuffer.wrap(msg.toByteArray(Charsets.UTF_8))
         val binaryData = DataChannel.Buffer(buffer, false)
+        scope.launch {
+            _messageStream.emit(
+                MessageType.MessageByMe(msg)
+            )
+        }
         dataChannel.send(binaryData)
     }
 

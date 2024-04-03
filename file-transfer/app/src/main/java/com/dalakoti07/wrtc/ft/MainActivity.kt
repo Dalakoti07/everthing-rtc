@@ -4,9 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,10 +29,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dalakoti07.wrtc.ft.rtc.MessageType
 import com.dalakoti07.wrtc.ft.ui.theme.FiletransferappTheme
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
 
 private const val TAG = "MainActivity"
 
@@ -45,6 +55,18 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun <T> rememberFlowWithLifecycle(
+    flow: Flow<T>,
+    lifecycle: Lifecycle = LocalLifecycleOwner.current.lifecycle,
+    minActiveState: Lifecycle.State = Lifecycle.State.STARTED,
+): Flow<T> = remember(flow, lifecycle, minActiveState) {
+    flow.flowWithLifecycle(
+        lifecycle = lifecycle,
+        minActiveState = minActiveState,
+    )
+}
+
+@Composable
 fun MainScreen() {
     var yourName by remember {
         mutableStateOf("")
@@ -57,6 +79,36 @@ fun MainScreen() {
     }
     val viewModel = viewModel(modelClass = MainViewModel::class.java)
     val state = viewModel.state.collectAsState()
+    val events = rememberFlowWithLifecycle(flow = viewModel.oneTimeEvents)
+    var showIncomingRequestDialog by remember {
+        mutableStateOf(false)
+    }
+    LaunchedEffect(
+        key1 = events,
+        block = {
+            events.collectLatest {
+                when (it) {
+                    is MainOneTimeEvents.GotInvite -> {
+                        showIncomingRequestDialog = true
+                    }
+                }
+            }
+        },
+    )
+    if (showIncomingRequestDialog) {
+        DialogForIncomingRequest(
+            onDismiss = {
+                showIncomingRequestDialog = false
+            },
+            onAccept = {
+                viewModel.dispatchAction(
+                    MainActions.AcceptIncomingConnection
+                )
+                showIncomingRequestDialog = false
+            },
+            inviteFrom = state.value.inComingRequestFrom,
+        )
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -88,15 +140,64 @@ fun MainScreen() {
                     )
                 }
                 items(state.value.messagesFromServer.size) {
-                    Text(
-                        text = state.value.messagesFromServer[it],
-                        modifier = Modifier
-                            .padding(
-                                top = 10.dp,
-                                start = 10.dp,
+                    val current = state.value.messagesFromServer[it]
+                    when(current){
+                        is MessageType.Info->{
+                            Text(
+                                text = current.msg,
+                                modifier = Modifier
+                                    .padding(
+                                        top = 10.dp,
+                                        start = 10.dp,
+                                    )
+                                    .fillMaxWidth()
                             )
-                            .fillMaxWidth()
-                    )
+                        }
+                        is MessageType.MessageByMe->{
+                            Row(
+                                modifier = Modifier
+                                    .padding(
+                                        top = 10.dp,
+                                        start = 10.dp,
+                                    )
+                                    .fillMaxWidth(),
+                            ) {
+                                Spacer(modifier = Modifier.fillMaxWidth(1f))
+                                Text(
+                                    text = current.msg,
+                                    modifier = Modifier
+                                        .fillMaxWidth(1f)
+                                        .background(
+                                            color = Color(0xFF240A34)
+                                        ),
+                                    color = Color.White,
+                                )
+                            }
+                        }
+                        is MessageType.MessageByPeer->{
+                            Row(
+                                modifier = Modifier
+                                    .padding(
+                                        top = 10.dp,
+                                        start = 10.dp,
+                                    )
+                                    .fillMaxWidth(),
+                            ) {
+                                Text(
+                                    text = current.msg,
+                                    modifier = Modifier
+                                        .fillMaxWidth(1f)
+                                        .background(
+                                            color = Color(0xFFFA7070),
+                                        ),
+                                    color = Color.White,
+                                )
+                                Spacer(modifier = Modifier.fillMaxWidth(1f))
+                            }
+                        }
+
+                        else -> {}
+                    }
                 }
             },
         )
@@ -105,96 +206,168 @@ fun MainScreen() {
                 Alignment.BottomCenter,
             ),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(
-                    start = 10.dp,
-                ),
-            ) {
-                TextField(
-                    modifier = Modifier.weight(1f),
-                    value = if (state.value.connectedAs.isNotEmpty()) {
-                        connectTo
-                    } else {
-                        yourName
-                    },
-                    onValueChange = {
-                        if (state.value.connectedAs.isNotEmpty()) {
-                            connectTo = it
-                        } else {
-                            yourName = it
-                        }
-                    },
-                    colors = TextFieldDefaults.colors(
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedContainerColor = Color(0xFFFA7070),
-                        unfocusedContainerColor = Color(0xFFFA7070),
-                    ),
-                    shape = RoundedCornerShape(15.dp),
-                )
-                Button(
-                    onClick = {
-                        if (state.value.connectedAs.isNotEmpty()) {
-                            viewModel.dispatchAction(
-                                MainActions.ConnectToUser(connectTo)
-                            )
-                        } else {
-                            viewModel.dispatchAction(
-                                MainActions.ConnectAs(yourName)
-                            )
-                        }
-                    },
+            if(state.value.isRtcEstablished){
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(
+                        top = 10.dp,
+                        bottom = 10.dp,
                         start = 10.dp,
-                        end = 10.dp,
-                    ),
-                    colors = ButtonDefaults.buttonColors(
-                        contentColor = Color.White,
-                        containerColor = Color(0xFFFA7070),
                     ),
                 ) {
-                    Text(text = "GO")
+                    TextField(
+                        modifier = Modifier.weight(1f),
+                        value = chatMessage,
+                        onValueChange = {
+                            chatMessage = it
+                        },
+                        colors = TextFieldDefaults.colors(
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            focusedContainerColor = Color(0xFFFA7070),
+                            unfocusedContainerColor = Color(0xFFFA7070),
+                        ),
+                        shape = RoundedCornerShape(15.dp),
+                    )
+                    Button(
+                        onClick = {
+                            viewModel.dispatchAction(
+                                MainActions.SendChatMessage(chatMessage)
+                            )
+                        },
+                        modifier = Modifier.padding(
+                            start = 10.dp,
+                            end = 10.dp,
+                        ),
+                        colors = ButtonDefaults.buttonColors(
+                            contentColor = Color.White,
+                            containerColor = Color(0xFFFA7070),
+                        ),
+                    ) {
+                        Text(text = "Chat")
+                    }
+                }
+            }else{
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(
+                        start = 10.dp,
+                    ),
+                ) {
+                    TextField(
+                        modifier = Modifier.weight(1f),
+                        value = if (state.value.connectedAs.isNotEmpty()) {
+                            connectTo
+                        } else {
+                            yourName
+                        },
+                        onValueChange = {
+                            if (state.value.connectedAs.isNotEmpty()) {
+                                connectTo = it
+                            } else {
+                                yourName = it
+                            }
+                        },
+                        colors = TextFieldDefaults.colors(
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            focusedContainerColor = Color(0xFFFA7070),
+                            unfocusedContainerColor = Color(0xFFFA7070),
+                        ),
+                        shape = RoundedCornerShape(15.dp),
+                    )
+                    Button(
+                        onClick = {
+                            if (state.value.connectedAs.isNotEmpty()) {
+                                viewModel.dispatchAction(
+                                    MainActions.ConnectToUser(connectTo)
+                                )
+                            } else {
+                                viewModel.dispatchAction(
+                                    MainActions.ConnectAs(yourName)
+                                )
+                            }
+                        },
+                        modifier = Modifier.padding(
+                            start = 10.dp,
+                            end = 10.dp,
+                        ),
+                        colors = ButtonDefaults.buttonColors(
+                            contentColor = Color.White,
+                            containerColor = Color(0xFFFA7070),
+                        ),
+                    ) {
+                        Text(text = "GO")
+                    }
                 }
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(
-                    top = 10.dp,
-                    bottom = 10.dp,
-                    start = 10.dp,
-                ),
-            ) {
-                TextField(
-                    modifier = Modifier.weight(1f),
-                    value = chatMessage,
-                    onValueChange = {
-                        chatMessage = it
-                    },
-                    colors = TextFieldDefaults.colors(
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedContainerColor = Color(0xFFFA7070),
-                        unfocusedContainerColor = Color(0xFFFA7070),
-                    ),
-                    shape = RoundedCornerShape(15.dp),
+
+        }
+    }
+}
+
+@Preview
+@Composable
+fun DialogForIncomingRequestPreview() {
+    FiletransferappTheme {
+        DialogForIncomingRequest(
+            onAccept = {},
+            onDismiss = {},
+            inviteFrom = "Shah Rukh Khan"
+        )
+    }
+}
+
+@Composable
+fun DialogForIncomingRequest(
+    onDismiss: () -> Unit = {},
+    onAccept: () -> Unit = {},
+    inviteFrom: String,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = Color.White,
                 )
+                .padding(
+                    8.dp,
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(text = "You got invite from $inviteFrom")
+            Row(
+                modifier = Modifier
+                    .padding(
+                        horizontal = 20.dp,
+                    )
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
                 Button(
-                    onClick = {
-                        viewModel.dispatchAction(
-                            MainActions.SendChatMessage(chatMessage)
-                        )
-                    },
+                    onClick = onDismiss,
                     modifier = Modifier.padding(
-                        start = 10.dp,
-                        end = 10.dp,
+                        vertical = 10.dp,
                     ),
                     colors = ButtonDefaults.buttonColors(
                         contentColor = Color.White,
                         containerColor = Color(0xFFFA7070),
                     ),
                 ) {
-                    Text(text = "Chat")
+                    Text(text = "Cancel")
+                }
+                Button(
+                    onClick = onAccept,
+                    modifier = Modifier.padding(
+                        vertical = 10.dp,
+                    ),
+                    colors = ButtonDefaults.buttonColors(
+                        contentColor = Color.White,
+                        containerColor = Color(0xFFFA7070),
+                    ),
+                ) {
+                    Text(text = "Accept")
                 }
             }
         }

@@ -4,14 +4,18 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dalakoti07.wrtc.ft.rtc.IceCandidateModel
+import com.dalakoti07.wrtc.ft.rtc.MessageType
 import com.dalakoti07.wrtc.ft.rtc.WebRTCManager
 import com.dalakoti07.wrtc.ft.socket.MessageModel
 import com.dalakoti07.wrtc.ft.socket.SocketConnection
 import com.dalakoti07.wrtc.ft.socket.SocketEvents
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -27,6 +31,12 @@ class MainViewModel : ViewModel() {
     )
     val state: StateFlow<MainScreenState>
         get() = _state
+
+    private lateinit var newOfferMessage: MessageModel
+
+    private val _oneTimeEvents = MutableSharedFlow<MainOneTimeEvents>()
+    val oneTimeEvents: Flow<MainOneTimeEvents>
+        get() = _oneTimeEvents.asSharedFlow()
 
     private val socketConnection = SocketConnection()
     private val gson = Gson()
@@ -67,11 +77,11 @@ class MainViewModel : ViewModel() {
         Log.d(TAG, "handleNewMessage in VM")
         when (message.type) {
             "user_already_exists" -> {
-                sendMessageToUi("user already exists")
+                sendMessageToUi(MessageType.Info("User already exists"))
             }
             "user_stored" -> {
-                Log.d(TAG, "user stored in socket")
-                sendMessageToUi("user stored in socket")
+                Log.d(TAG, "User stored in socket")
+                sendMessageToUi(MessageType.Info("User stored in socket"))
                 _state.update {
                     state.value.copy(
                         isConnectedToServer = true,
@@ -83,7 +93,7 @@ class MainViewModel : ViewModel() {
                 Log.d(TAG, "transfer_response: ")
                 // user is online / offline
                 if (message.data == null) {
-                    sendMessageToUi("user is not available")
+                    sendMessageToUi(MessageType.Info("User is not available"))
                     return
                 }
                 // important to update target
@@ -94,7 +104,7 @@ class MainViewModel : ViewModel() {
                 )
                 consumeEventsFromRTC()
                 rtcManager.updateTarget(message.data.toString())
-                sendMessageToUi("User is Connected to ${message.data}")
+                sendMessageToUi(MessageType.Info("User is Connected to ${message.data}"))
                 _state.update {
                     state.value.copy(
                         isConnectToPeer = message.data.toString(),
@@ -106,21 +116,18 @@ class MainViewModel : ViewModel() {
                 )
             }
             "offer_received" -> {
+                newOfferMessage = message
                 Log.d(TAG, "offer_received ")
-                val session = SessionDescription(
-                    SessionDescription.Type.OFFER,
-                    message.data.toString()
-                )
-                if(!::rtcManager.isInitialized){
-                    rtcManager = WebRTCManager(
-                        socketConnection = socketConnection,
-                        userName = state.value.connectedAs,
-                        target = message.name.toString(),
+                _state.update {
+                    state.value.copy(
+                        inComingRequestFrom = message.name.orEmpty(),
                     )
-                    consumeEventsFromRTC()
                 }
-                rtcManager.onRemoteSessionReceived(session)
-                rtcManager.answerToOffer(message.name)
+                viewModelScope.launch {
+                    _oneTimeEvents.emit(
+                        MainOneTimeEvents.GotInvite
+                    )
+                }
             }
             "answer_received" -> {
                 val session = SessionDescription(
@@ -154,12 +161,19 @@ class MainViewModel : ViewModel() {
     private fun consumeEventsFromRTC() {
         viewModelScope.launch {
             rtcManager.messageStream.collectLatest {
+                if(it is MessageType.ConnectedToPeer){
+                    _state.update {
+                        state.value.copy(
+                            isRtcEstablished = true,
+                        )
+                    }
+                }
                 sendMessageToUi(msg = it)
             }
         }
     }
 
-    private fun sendMessageToUi(msg: String) {
+    private fun sendMessageToUi(msg: MessageType) {
         viewModelScope.launch(Dispatchers.IO) {
             _state.update {
                 state.value.copy(
@@ -176,6 +190,21 @@ class MainViewModel : ViewModel() {
             }
             is MainActions.AcceptIncomingConnection -> {
                 // todo do add view for confirmation, and then take further actions
+                val session = SessionDescription(
+                    SessionDescription.Type.OFFER,
+                    newOfferMessage.data.toString()
+                )
+                // move to new place
+                if(!::rtcManager.isInitialized){
+                    rtcManager = WebRTCManager(
+                        socketConnection = socketConnection,
+                        userName = state.value.connectedAs,
+                        target = newOfferMessage.name.toString(),
+                    )
+                    consumeEventsFromRTC()
+                }
+                rtcManager.onRemoteSessionReceived(session)
+                rtcManager.answerToOffer(newOfferMessage.name)
             }
             is MainActions.ConnectToUser -> {
                 socketConnection.sendMessageToSocket(
