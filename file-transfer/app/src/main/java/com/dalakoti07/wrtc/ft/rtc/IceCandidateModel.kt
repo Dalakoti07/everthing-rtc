@@ -1,4 +1,4 @@
-package com.dalakoti07.wrtc.ft
+package com.dalakoti07.wrtc.ft.rtc
 
 class IceCandidateModel(
     val sdpMid:String,

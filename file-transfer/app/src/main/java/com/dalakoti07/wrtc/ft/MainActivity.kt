@@ -1,22 +1,22 @@
 package com.dalakoti07.wrtc.ft
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,8 +46,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen() {
-    //todo saurabh rename them to yourName and peer's Name
-    var enteredName by remember {
+    var yourName by remember {
         mutableStateOf("")
     }
     var connectTo by remember {
@@ -59,30 +58,34 @@ fun MainScreen() {
     val viewModel = viewModel(modelClass = MainViewModel::class.java)
     val state = viewModel.state.collectAsState()
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                color = Color(0xFFFEFDED)
+            ),
     ) {
-        Text(
-            text = if (state.value.isConnectedToServer)
-                "Connected to server as ${state.value.connectedAs}"
-            else "Not connected",
-            modifier = Modifier
-                .align(
-                    Alignment.TopCenter,
-                )
-                .fillMaxWidth()
-                .background(
-                    color = if (state.value.isConnectedToServer)
-                        Color.Green
-                    else Color.Red
-                )
-                .padding(
-                    10.dp
-                ),
-        )
         LazyColumn(
             content = {
                 item {
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Text(
+                        text = if (state.value.isConnectedToServer)
+                            "Connected to server as ${state.value.connectedAs}"
+                        else "Not connected to server",
+                        modifier = Modifier
+                            .align(
+                                Alignment.TopCenter,
+                            )
+                            .fillMaxWidth()
+                            .background(
+                                color = if (state.value.isConnectedToServer)
+                                    Color(0xFF2C7865)
+                                else Color(0xFFD20062),
+                            )
+                            .padding(
+                                10.dp
+                            ),
+                        color = Color.White,
+                    )
                 }
                 items(state.value.messagesFromServer.size) {
                     Text(
@@ -90,6 +93,7 @@ fun MainScreen() {
                         modifier = Modifier
                             .padding(
                                 top = 10.dp,
+                                start = 10.dp,
                             )
                             .fillMaxWidth()
                     )
@@ -103,21 +107,31 @@ fun MainScreen() {
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(
+                    start = 10.dp,
+                ),
             ) {
                 TextField(
                     modifier = Modifier.weight(1f),
                     value = if (state.value.connectedAs.isNotEmpty()) {
                         connectTo
                     } else {
-                        enteredName
+                        yourName
                     },
                     onValueChange = {
                         if (state.value.connectedAs.isNotEmpty()) {
                             connectTo = it
                         } else {
-                            enteredName = it
+                            yourName = it
                         }
                     },
+                    colors = TextFieldDefaults.colors(
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedContainerColor = Color(0xFFFA7070),
+                        unfocusedContainerColor = Color(0xFFFA7070),
+                    ),
+                    shape = RoundedCornerShape(15.dp),
                 )
                 Button(
                     onClick = {
@@ -127,13 +141,17 @@ fun MainScreen() {
                             )
                         } else {
                             viewModel.dispatchAction(
-                                MainActions.ConnectAs(enteredName)
+                                MainActions.ConnectAs(yourName)
                             )
                         }
                     },
                     modifier = Modifier.padding(
                         start = 10.dp,
                         end = 10.dp,
+                    ),
+                    colors = ButtonDefaults.buttonColors(
+                        contentColor = Color.White,
+                        containerColor = Color(0xFFFA7070),
                     ),
                 ) {
                     Text(text = "GO")
@@ -143,6 +161,8 @@ fun MainScreen() {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(
                     top = 10.dp,
+                    bottom = 10.dp,
+                    start = 10.dp,
                 ),
             ) {
                 TextField(
@@ -151,6 +171,13 @@ fun MainScreen() {
                     onValueChange = {
                         chatMessage = it
                     },
+                    colors = TextFieldDefaults.colors(
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedContainerColor = Color(0xFFFA7070),
+                        unfocusedContainerColor = Color(0xFFFA7070),
+                    ),
+                    shape = RoundedCornerShape(15.dp),
                 )
                 Button(
                     onClick = {
@@ -161,6 +188,10 @@ fun MainScreen() {
                     modifier = Modifier.padding(
                         start = 10.dp,
                         end = 10.dp,
+                    ),
+                    colors = ButtonDefaults.buttonColors(
+                        contentColor = Color.White,
+                        containerColor = Color(0xFFFA7070),
                     ),
                 ) {
                     Text(text = "Chat")

@@ -1,4 +1,4 @@
-package com.dalakoti07.wrtc.ft
+package com.dalakoti07.wrtc.ft.socket
 
 data class MessageModel(
     // todo name it enum, and refactor it

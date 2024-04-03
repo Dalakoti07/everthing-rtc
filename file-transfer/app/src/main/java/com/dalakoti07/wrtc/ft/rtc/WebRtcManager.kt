@@ -1,6 +1,9 @@
-package com.dalakoti07.wrtc.ft
+package com.dalakoti07.wrtc.ft.rtc
 
 import android.util.Log
+import com.dalakoti07.wrtc.ft.socket.MessageModel
+import com.dalakoti07.wrtc.ft.socket.SocketConnection
+import com.dalakoti07.wrtc.ft.TransferApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -15,7 +18,6 @@ import org.webrtc.PeerConnectionFactory
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 import java.nio.ByteBuffer
-import kotlin.math.log
 
 private const val TAG = "WebRtcManager"
 

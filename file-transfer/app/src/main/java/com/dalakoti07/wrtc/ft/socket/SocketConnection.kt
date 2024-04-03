@@ -1,4 +1,4 @@
-package com.dalakoti07.wrtc.ft
+package com.dalakoti07.wrtc.ft.socket
 
 import android.util.Log
 import com.google.gson.Gson
@@ -34,7 +34,7 @@ class SocketConnection {
         username: String,
     ) {
 
-        webSocket = object : WebSocketClient(URI("ws://192.168.0.101:3000")) {
+        webSocket = object : WebSocketClient(URI("ws://192.168.0.108:3000")) {
             override fun onOpen(handshakedata: ServerHandshake?) {
                 Log.d(TAG, "onOpen: ${Thread.currentThread()}")
                 sendMessageToSocket(
@@ -56,7 +56,7 @@ class SocketConnection {
                     Log.d(TAG, "onMessage: error -> $e")
                     emitEvent(
                         SocketEvents.ConnectionError(
-                            e.message?: "error in receiving messages from socket"
+                            e.message ?: "error in receiving messages from socket"
                         )
                     )
                     e.printStackTrace()
@@ -76,7 +76,7 @@ class SocketConnection {
                 Log.d(TAG, "onError: $ex")
                 emitEvent(
                     SocketEvents.ConnectionError(
-                        ex?.message?: "Socket exception"
+                        ex?.message ?: "Socket exception"
                     )
                 )
             }
