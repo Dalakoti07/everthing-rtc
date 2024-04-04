@@ -1,10 +1,8 @@
 package com.dalakoti07.wrtc.call.rtc
 
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
 import android.util.Log
 import com.dalakoti07.wrtc.call.CallApp
+import com.dalakoti07.wrtc.call.audio.AudioTrackPlayer
 import com.dalakoti07.wrtc.call.socket.MessageModel
 import com.dalakoti07.wrtc.call.socket.SocketConnection
 import kotlinx.coroutines.CoroutineScope
@@ -12,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
+import org.webrtc.AudioTrack
 import org.webrtc.DataChannel
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
@@ -20,14 +19,11 @@ import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
-import org.webrtc.SurfaceTextureHelper
-import org.webrtc.SurfaceViewRenderer
-import java.nio.ByteBuffer
 
 private const val TAG = "WebRtcManager"
 
-sealed class MessageType{
-    data class Info(val msg: String): MessageType()
+sealed class MessageType {
+    data class Info(val msg: String) : MessageType()
     data object ConnectedToPeer : MessageType()
 }
 
@@ -35,7 +31,7 @@ class WebRTCManager(
     private var target: String,
     private val socketConnection: SocketConnection,
     private val userName: String,
-): PeerConnection.Observer {
+) : PeerConnection.Observer {
 
     private val scope = CoroutineScope(Dispatchers.IO)
     private val _messageStream = MutableSharedFlow<MessageType>()
@@ -62,8 +58,8 @@ class WebRTCManager(
             "openrelayproject"
         ),
     )
-    private lateinit var peerConnectionFactory: PeerConnectionFactory
-    private lateinit var peerConnection: PeerConnection
+    lateinit var peerConnectionFactory: PeerConnectionFactory
+    lateinit var peerConnection: PeerConnection
     private lateinit var dataChannel: DataChannel
 
     init {
@@ -72,7 +68,7 @@ class WebRTCManager(
         createDataChannel("localDataChannel")
     }
 
-    fun updateTarget(name: String){
+    fun updateTarget(name: String) {
         target = name
     }
 
@@ -102,16 +98,18 @@ class WebRTCManager(
             override fun onBufferedAmountChange(amount: Long) {
                 Log.d(TAG, "data channel onBufferedAmountChange: ")
             }
+
             override fun onStateChange() {
                 Log.d(TAG, "data channel onStateChange ")
             }
+
             override fun onMessage(buffer: DataChannel.Buffer?) {
                 Log.d(TAG, "onMessage: at line 86")
             }
         })
     }
 
-    fun createOffer(from: String, target: String){
+    fun createOffer(from: String, target: String) {
         Log.d(TAG, "user is available creating offer")
         val sdpObserver = object : SdpObserver {
             override fun onCreateSuccess(desc: SessionDescription?) {
@@ -119,6 +117,7 @@ class WebRTCManager(
                     override fun onCreateSuccess(desc: SessionDescription?) {
                         Log.d(TAG, "onCreateSuccess: .... using socket to notify peer")
                     }
+
                     override fun onSetSuccess() {
                         Log.d(TAG, "onSetSuccess: ")
                         val offer = hashMapOf(
@@ -132,9 +131,11 @@ class WebRTCManager(
                             )
                         )
                     }
+
                     override fun onCreateFailure(error: String?) {
                         Log.d(TAG, "error in creating offer $error")
                     }
+
                     override fun onSetFailure(error: String?) {
                         Log.d(TAG, "onSetFailure: err-> $error")
                     }
@@ -151,7 +152,12 @@ class WebRTCManager(
 
         val mediaConstraints = MediaConstraints()
         mediaConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
-        mediaConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
+        mediaConstraints.mandatory.add(
+            MediaConstraints.KeyValuePair(
+                "OfferToReceiveVideo",
+                "false"
+            )
+        )
         peerConnection.createOffer(sdpObserver, mediaConstraints)
     }
 
@@ -174,6 +180,7 @@ class WebRTCManager(
                     )
                 }
             }
+
             else -> {
                 // Peers are not connected
                 Log.d(TAG, "ICE Connection State: not Connected")
@@ -196,7 +203,7 @@ class WebRTCManager(
             "sdpCandidate" to p0?.sdp
         )
         socketConnection.sendMessageToSocket(
-            MessageModel("ice_candidate",userName,target,candidate)
+            MessageModel("ice_candidate", userName, target, candidate)
         )
     }
 
@@ -204,32 +211,14 @@ class WebRTCManager(
     }
 
     override fun onAddStream(mediaStream: MediaStream?) {
-        /*mediaStream?.audioTracks?.forEach { _audioTrack ->
-            _audioTrack.setEnabled(true)
-            // Create an AudioTrack to play the audio
-            val audioFormat = AudioFormat.Builder()
-                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                .setSampleRate(44100) // Adjust based on the audio data received
-                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                .build()
-            val bufferSize = AudioTrack.getMinBufferSize(audioFormat.sampleRate, audioFormat.channelMask, audioFormat.encoding)
-            val audioTrack = AudioTrack.Builder()
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build())
-                .setAudioFormat(audioFormat)
-                .setBufferSizeInBytes(bufferSize)
-                .setTransferMode(AudioTrack.MODE_STREAM)
-                .build()
+        mediaStream?.audioTracks?.forEach { audioTrack ->
+            Log.d(TAG, "onAddStream: $audioTrack")
+            audioTrack.setEnabled(true)
+        }
+    }
 
-            // Start playback
-            audioTrack.play()
+    private fun playAudioTrack(audioTrack: AudioTrack?) {
 
-            // Attach the audio track to the media stream track
-            audioTrack.attachToTrack(audioTrack)
-        }*/
     }
 
     override fun onRemoveStream(p0: MediaStream?) {
@@ -237,7 +226,7 @@ class WebRTCManager(
 
     override fun onDataChannel(p0: DataChannel?) {
         Log.d(TAG, "onDataChannel: called for peers")
-        p0!!.registerObserver(object: DataChannel.Observer{
+        p0!!.registerObserver(object : DataChannel.Observer {
             override fun onBufferedAmountChange(p0: Long) {
             }
 
@@ -313,15 +302,16 @@ class WebRTCManager(
     }
 
     fun setLocalAudioStream() {
+        /*
         Log.d(TAG, "startLocalVideo called ....")
         val localAudioSource = peerConnectionFactory.createAudioSource(MediaConstraints())
         val localAudioTrack =
             peerConnectionFactory.createAudioTrack("local_track_audio", localAudioSource)
         val localStream = peerConnectionFactory.createLocalMediaStream("local_stream")
         localStream.addTrack(localAudioTrack)
-        peerConnection.addStream(localStream)
+        peerConnection.addTrack(localAudioTrack)
+        */
     }
-
 
 
 }

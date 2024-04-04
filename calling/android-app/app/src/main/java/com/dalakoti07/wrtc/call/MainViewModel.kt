@@ -3,6 +3,7 @@ package com.dalakoti07.wrtc.call
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dalakoti07.wrtc.call.audio.AudioRecorder
 import com.dalakoti07.wrtc.call.rtc.IceCandidateModel
 import com.dalakoti07.wrtc.call.rtc.MessageType
 import com.dalakoti07.wrtc.call.rtc.WebRTCManager
@@ -41,6 +42,7 @@ class MainViewModel : ViewModel() {
     private val socketConnection = SocketConnection()
     private val gson = Gson()
     private lateinit var rtcManager: WebRTCManager
+    private lateinit var audioRecorder: AudioRecorder
 
     init {
         listenToSocketEvents()
@@ -114,7 +116,6 @@ class MainViewModel : ViewModel() {
                     from = state.value.connectedAs,
                     target = message.data.toString(),
                 )
-                rtcManager.setLocalAudioStream()
             }
             "offer_received" -> {
                 newOfferMessage = message
@@ -219,7 +220,11 @@ class MainViewModel : ViewModel() {
                 )
             }
             is MainActions.SendChatMessage->{
-
+                audioRecorder = AudioRecorder(
+                    rtcManager.peerConnection,
+                    rtcManager.peerConnectionFactory,
+                )
+                audioRecorder.startRecordingAndEmit()
             }
         }
     }

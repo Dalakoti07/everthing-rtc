@@ -197,6 +197,7 @@ fun HomeScreenContent(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(
                         start = 10.dp,
+                        bottom = 10.dp,
                     ),
                 ) {
                     TextField(
@@ -244,6 +245,22 @@ fun HomeScreenContent(
                     ) {
                         Text(text = "GO")
                     }
+                }
+            } else {
+                Button(
+                    onClick = {
+                        dispatchAction(
+                            // todo correct this
+                            MainActions.SendChatMessage("")
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        contentColor = Color.White,
+                        containerColor = Color(0xFFFA7070),
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(text = "Record Audio")
                 }
             }
         }
