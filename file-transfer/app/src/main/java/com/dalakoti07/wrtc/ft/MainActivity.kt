@@ -119,25 +119,41 @@ fun MainScreen() {
         LazyColumn(
             content = {
                 item {
-                    Text(
-                        text = if (state.value.isConnectedToServer)
-                            "Connected to server as ${state.value.connectedAs}"
-                        else "Not connected to server",
-                        modifier = Modifier
-                            .align(
-                                Alignment.TopCenter,
-                            )
-                            .fillMaxWidth()
-                            .background(
-                                color = if (state.value.isConnectedToServer)
-                                    Color(0xFF2C7865)
-                                else Color(0xFFD20062),
-                            )
-                            .padding(
-                                10.dp
-                            ),
-                        color = Color.White,
-                    )
+                    if(state.value.peerConnectionString.isEmpty()){
+                        Text(
+                            text = if (state.value.isConnectedToServer)
+                                "Connected to server as ${state.value.connectedAs}"
+                            else "Not connected to server",
+                            modifier = Modifier
+                                .align(
+                                    Alignment.TopCenter,
+                                )
+                                .fillMaxWidth()
+                                .background(
+                                    color = Color(0xFFD20062),
+                                )
+                                .padding(
+                                    10.dp
+                                ),
+                            color = Color.White,
+                        )
+                    }else{
+                        Text(
+                            text = state.value.peerConnectionString,
+                            modifier = Modifier
+                                .align(
+                                    Alignment.TopCenter,
+                                )
+                                .fillMaxWidth()
+                                .background(
+                                    Color(0xFFD20062),
+                                )
+                                .padding(
+                                    10.dp
+                                ),
+                            color = Color.White,
+                        )
+                    }
                 }
                 items(state.value.messagesFromServer.size) {
                     val current = state.value.messagesFromServer[it]
@@ -162,7 +178,7 @@ fun MainScreen() {
                                     )
                                     .fillMaxWidth(),
                             ) {
-                                Spacer(modifier = Modifier.fillMaxWidth(1f))
+                                Box(modifier = Modifier.fillMaxWidth(1f))
                                 Text(
                                     text = current.msg,
                                     modifier = Modifier
@@ -192,7 +208,7 @@ fun MainScreen() {
                                         ),
                                     color = Color.White,
                                 )
-                                Spacer(modifier = Modifier.fillMaxWidth(1f))
+                                Box(modifier = Modifier.fillMaxWidth(1f))
                             }
                         }
 

@@ -9,6 +9,7 @@ data class MainScreenState(
     val messagesFromServer: List<MessageType> = emptyList(),
     val inComingRequestFrom: String = "",
     val isRtcEstablished: Boolean = false,
+    val peerConnectionString: String = "",
 )
 
 sealed class MainActions {

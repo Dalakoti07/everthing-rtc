@@ -118,6 +118,7 @@ class WebRTCManager(
         // Handle the received message
         Log.d(TAG, "Received message: $message")
         scope.launch {
+            if(message.isEmpty()) return@launch
             _messageStream.emit(
                 MessageType.MessageByPeer(
                     message
@@ -182,12 +183,14 @@ class WebRTCManager(
                 // Peers are connected
                 Log.d(TAG, "ICE Connection State: Connected ")
                 scope.launch {
-
+                    _messageStream.emit(
+                        MessageType.ConnectedToPeer
+                    )
                 }
             }
             else -> {
                 // Peers are not connected
-                Log.d(TAG, "ICE Connection State: Connected")
+                Log.d(TAG, "ICE Connection State: not Connected")
             }
         }
     }
@@ -302,6 +305,7 @@ class WebRTCManager(
         val buffer = ByteBuffer.wrap(msg.toByteArray(Charsets.UTF_8))
         val binaryData = DataChannel.Buffer(buffer, false)
         scope.launch {
+            if(msg.isEmpty()) return@launch
             _messageStream.emit(
                 MessageType.MessageByMe(msg)
             )

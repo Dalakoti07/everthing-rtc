@@ -165,6 +165,7 @@ class MainViewModel : ViewModel() {
                     _state.update {
                         state.value.copy(
                             isRtcEstablished = true,
+                            peerConnectionString = "Is connected to peer ${state.value.isConnectToPeer}",
                         )
                     }
                 }
