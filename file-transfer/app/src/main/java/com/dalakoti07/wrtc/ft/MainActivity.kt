@@ -21,6 +21,8 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +41,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dalakoti07.wrtc.ft.rtc.MessageType
 import com.dalakoti07.wrtc.ft.ui.theme.FiletransferappTheme
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 
 private const val TAG = "MainActivity"
@@ -68,17 +71,8 @@ fun <T> rememberFlowWithLifecycle(
 
 @Composable
 fun MainScreen() {
-    var yourName by remember {
-        mutableStateOf("")
-    }
-    var connectTo by remember {
-        mutableStateOf("")
-    }
-    var chatMessage by remember {
-        mutableStateOf("")
-    }
     val viewModel = viewModel(modelClass = MainViewModel::class.java)
-    val state = viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsState()
     val events = rememberFlowWithLifecycle(flow = viewModel.oneTimeEvents)
     var showIncomingRequestDialog by remember {
         mutableStateOf(false)
@@ -106,8 +100,32 @@ fun MainScreen() {
                 )
                 showIncomingRequestDialog = false
             },
-            inviteFrom = state.value.inComingRequestFrom,
+            inviteFrom = state.inComingRequestFrom,
         )
+    }
+    HomeScreenContent(
+        state = state,
+        dispatchAction = {
+            viewModel.dispatchAction(
+                it
+            )
+        },
+    )
+}
+
+@Composable
+fun HomeScreenContent(
+    state: MainScreenState,
+    dispatchAction: (MainActions) -> Unit = {},
+) {
+    var yourName by remember {
+        mutableStateOf("")
+    }
+    var connectTo by remember {
+        mutableStateOf("")
+    }
+    var chatMessage by remember {
+        mutableStateOf("")
     }
     Box(
         modifier = Modifier
@@ -119,10 +137,10 @@ fun MainScreen() {
         LazyColumn(
             content = {
                 item {
-                    if(state.value.peerConnectionString.isEmpty()){
+                    if (state.peerConnectionString.isEmpty()) {
                         Text(
-                            text = if (state.value.isConnectedToServer)
-                                "Connected to server as ${state.value.connectedAs}"
+                            text = if (state.isConnectedToServer)
+                                "Connected to server as ${state.connectedAs}"
                             else "Not connected to server",
                             modifier = Modifier
                                 .align(
@@ -137,9 +155,9 @@ fun MainScreen() {
                                 ),
                             color = Color.White,
                         )
-                    }else{
+                    } else {
                         Text(
-                            text = state.value.peerConnectionString,
+                            text = state.peerConnectionString,
                             modifier = Modifier
                                 .align(
                                     Alignment.TopCenter,
@@ -155,10 +173,10 @@ fun MainScreen() {
                         )
                     }
                 }
-                items(state.value.messagesFromServer.size) {
-                    val current = state.value.messagesFromServer[it]
-                    when(current){
-                        is MessageType.Info->{
+                items(state.messagesFromServer.size) {
+                    val current = state.messagesFromServer[it]
+                    when (current) {
+                        is MessageType.Info -> {
                             Text(
                                 text = current.msg,
                                 modifier = Modifier
@@ -169,7 +187,7 @@ fun MainScreen() {
                                     .fillMaxWidth()
                             )
                         }
-                        is MessageType.MessageByMe->{
+                        is MessageType.MessageByMe -> {
                             Row(
                                 modifier = Modifier
                                     .padding(
@@ -178,19 +196,28 @@ fun MainScreen() {
                                     )
                                     .fillMaxWidth(),
                             ) {
-                                Box(modifier = Modifier.fillMaxWidth(1f))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                )
                                 Text(
                                     text = current.msg,
                                     modifier = Modifier
-                                        .fillMaxWidth(1f)
+                                        .fillMaxWidth()
+                                        .weight(1f)
                                         .background(
-                                            color = Color(0xFF240A34)
+                                            color = Color(0xFF240A34),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .padding(
+                                            8.dp,
                                         ),
                                     color = Color.White,
                                 )
                             }
                         }
-                        is MessageType.MessageByPeer->{
+                        is MessageType.MessageByPeer -> {
                             Row(
                                 modifier = Modifier
                                     .padding(
@@ -202,13 +229,22 @@ fun MainScreen() {
                                 Text(
                                     text = current.msg,
                                     modifier = Modifier
-                                        .fillMaxWidth(1f)
+                                        .fillMaxWidth()
+                                        .weight(1f)
                                         .background(
                                             color = Color(0xFFFA7070),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .padding(
+                                            8.dp,
                                         ),
                                     color = Color.White,
                                 )
-                                Box(modifier = Modifier.fillMaxWidth(1f))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                )
                             }
                         }
 
@@ -222,7 +258,7 @@ fun MainScreen() {
                 Alignment.BottomCenter,
             ),
         ) {
-            if(state.value.isRtcEstablished){
+            if (state.isRtcEstablished) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(
@@ -247,7 +283,7 @@ fun MainScreen() {
                     )
                     Button(
                         onClick = {
-                            viewModel.dispatchAction(
+                            dispatchAction(
                                 MainActions.SendChatMessage(chatMessage)
                             )
                         },
@@ -263,7 +299,7 @@ fun MainScreen() {
                         Text(text = "Chat")
                     }
                 }
-            }else{
+            } else {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(
@@ -272,13 +308,13 @@ fun MainScreen() {
                 ) {
                     TextField(
                         modifier = Modifier.weight(1f),
-                        value = if (state.value.connectedAs.isNotEmpty()) {
+                        value = if (state.connectedAs.isNotEmpty()) {
                             connectTo
                         } else {
                             yourName
                         },
                         onValueChange = {
-                            if (state.value.connectedAs.isNotEmpty()) {
+                            if (state.connectedAs.isNotEmpty()) {
                                 connectTo = it
                             } else {
                                 yourName = it
@@ -294,12 +330,12 @@ fun MainScreen() {
                     )
                     Button(
                         onClick = {
-                            if (state.value.connectedAs.isNotEmpty()) {
-                                viewModel.dispatchAction(
+                            if (state.connectedAs.isNotEmpty()) {
+                                dispatchAction(
                                     MainActions.ConnectToUser(connectTo)
                                 )
                             } else {
-                                viewModel.dispatchAction(
+                                dispatchAction(
                                     MainActions.ConnectAs(yourName)
                                 )
                             }
@@ -394,6 +430,11 @@ fun DialogForIncomingRequest(
 @Composable
 fun GreetingPreview() {
     FiletransferappTheme {
-        MainScreen()
+        val state by remember {
+            mutableStateOf(MainScreenState.forPreview())
+        }
+        HomeScreenContent(
+            state = state,
+        )
     }
 }

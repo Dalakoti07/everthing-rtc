@@ -169,6 +169,9 @@ class MainViewModel : ViewModel() {
                         )
                     }
                 }
+                if(it is MessageType.MessageByMe){
+                    Log.d(TAG, "consumeEventsFromRTC: ${it.msg}")
+                }
                 sendMessageToUi(msg = it)
             }
         }
