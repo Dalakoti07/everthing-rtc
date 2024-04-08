@@ -220,11 +220,12 @@ class MainViewModel : ViewModel() {
                 )
             }
             is MainActions.SendChatMessage->{
-                audioRecorder = AudioRecorder(
-                    rtcManager.peerConnection,
-                    rtcManager.peerConnectionFactory,
-                )
-                audioRecorder.startRecordingAndEmit()
+//                audioRecorder = AudioRecorder(
+//                    rtcManager.peerConnection,
+//                    rtcManager.peerConnectionFactory,
+//                )
+//                audioRecorder.startRecordingAndEmit()
+                rtcManager.setLocalAudioStream()
             }
         }
     }

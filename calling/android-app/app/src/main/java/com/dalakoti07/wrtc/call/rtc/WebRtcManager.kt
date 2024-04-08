@@ -65,7 +65,7 @@ class WebRTCManager(
     init {
         initializePeerConnectionFactory()
         createPeerConnection()
-        createDataChannel("localDataChannel")
+        //createDataChannel("localDataChannel")
     }
 
     fun updateTarget(name: String) {
@@ -91,7 +91,7 @@ class WebRTCManager(
             peerConnectionFactory.createPeerConnection(iceServers, this)!!
     }
 
-    private fun createDataChannel(label: String) {
+    /*private fun createDataChannel(label: String) {
         val init = DataChannel.Init()
         dataChannel = peerConnection.createDataChannel(label, init)
         dataChannel.registerObserver(object : DataChannel.Observer {
@@ -107,7 +107,7 @@ class WebRTCManager(
                 Log.d(TAG, "onMessage: at line 86")
             }
         })
-    }
+    }*/
 
     fun createOffer(from: String, target: String) {
         Log.d(TAG, "user is available creating offer")
@@ -152,7 +152,7 @@ class WebRTCManager(
 
         val mediaConstraints = MediaConstraints()
         mediaConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
-        mediaConstraints.mandatory.add(
+        mediaConstraints.optional.add(
             MediaConstraints.KeyValuePair(
                 "OfferToReceiveVideo",
                 "false"
@@ -261,7 +261,14 @@ class WebRTCManager(
     }
 
     fun answerToOffer(lTarget: String?) {
-        val constraints = MediaConstraints()
+        val mediaConstraints = MediaConstraints()
+        mediaConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+        mediaConstraints.optional.add(
+            MediaConstraints.KeyValuePair(
+                "OfferToReceiveVideo",
+                "false"
+            )
+        )
         peerConnection.createAnswer(object : SdpObserver {
             override fun onCreateSuccess(desc: SessionDescription?) {
                 peerConnection.setLocalDescription(object : SdpObserver {
@@ -298,11 +305,10 @@ class WebRTCManager(
             override fun onSetFailure(p0: String?) {
             }
 
-        }, constraints)
+        }, mediaConstraints)
     }
 
     fun setLocalAudioStream() {
-        /*
         Log.d(TAG, "startLocalVideo called ....")
         val localAudioSource = peerConnectionFactory.createAudioSource(MediaConstraints())
         val localAudioTrack =
@@ -310,7 +316,6 @@ class WebRTCManager(
         val localStream = peerConnectionFactory.createLocalMediaStream("local_stream")
         localStream.addTrack(localAudioTrack)
         peerConnection.addTrack(localAudioTrack)
-        */
     }
 
 
