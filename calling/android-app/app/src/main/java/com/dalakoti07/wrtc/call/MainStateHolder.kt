@@ -31,7 +31,7 @@ sealed class MainActions {
     data object AcceptIncomingConnection: MainActions()
     data class ConnectToUser(val name: String): MainActions()
 
-    data class SendChatMessage(val msg: String): MainActions()
+    data class EndCall(val msg: String): MainActions()
 }
 
 sealed class MainOneTimeEvents {

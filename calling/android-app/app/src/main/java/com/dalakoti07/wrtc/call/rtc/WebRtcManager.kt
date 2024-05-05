@@ -67,7 +67,6 @@ class WebRTCManager(
     init {
         initializePeerConnectionFactory()
         createPeerConnection()
-        //createDataChannel("localDataChannel")
     }
 
     fun updateTarget(name: String) {
@@ -91,6 +90,20 @@ class WebRTCManager(
     private fun createPeerConnection() {
         peerConnection =
             peerConnectionFactory.createPeerConnection(iceServers, this)!!
+        setUpAudio()
+    }
+
+    private fun setUpAudio() {
+        val audioConstraints = MediaConstraints()
+        audioConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+
+        val audioSource = peerConnectionFactory.createAudioSource(audioConstraints)
+        val audioTrack = peerConnectionFactory.createAudioTrack("ARDAMSa0", audioSource)
+        val transceiver = peerConnection.addTransceiver(audioTrack)
+        transceiver.direction = RtpTransceiver.RtpTransceiverDirection.SEND_RECV
+
+        audioTrack.setEnabled(true)
+        audioTrack.setVolume(1.0)
     }
 
     fun createOffer(from: String, target: String) {
@@ -293,16 +306,6 @@ class WebRTCManager(
             }
 
         }, mediaConstraints)
-    }
-
-    fun setLocalAudioStream() {
-        Log.d(TAG, "startLocalVideo called ....")
-        val localAudioSource = peerConnectionFactory.createAudioSource(MediaConstraints())
-        val localAudioTrack =
-            peerConnectionFactory.createAudioTrack("ARDAMSa0", localAudioSource)
-        val localStream = peerConnectionFactory.createLocalMediaStream("ARDAMS")
-        localStream.addTrack(localAudioTrack)
-        peerConnection.addTrack(localAudioTrack)
     }
 
 

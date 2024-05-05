@@ -251,7 +251,7 @@ fun HomeScreenContent(
                     onClick = {
                         dispatchAction(
                             // todo correct this
-                            MainActions.SendChatMessage("")
+                            MainActions.EndCall("")
                         )
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -260,7 +260,7 @@ fun HomeScreenContent(
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(text = "Record Audio")
+                    Text(text = "End Call")
                 }
             }
         }
