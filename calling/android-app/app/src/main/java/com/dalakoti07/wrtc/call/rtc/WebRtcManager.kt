@@ -17,6 +17,8 @@ import org.webrtc.MediaConstraints
 import org.webrtc.MediaStream
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
+import org.webrtc.RtpReceiver
+import org.webrtc.RtpTransceiver
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 
@@ -91,24 +93,6 @@ class WebRTCManager(
             peerConnectionFactory.createPeerConnection(iceServers, this)!!
     }
 
-    /*private fun createDataChannel(label: String) {
-        val init = DataChannel.Init()
-        dataChannel = peerConnection.createDataChannel(label, init)
-        dataChannel.registerObserver(object : DataChannel.Observer {
-            override fun onBufferedAmountChange(amount: Long) {
-                Log.d(TAG, "data channel onBufferedAmountChange: ")
-            }
-
-            override fun onStateChange() {
-                Log.d(TAG, "data channel onStateChange ")
-            }
-
-            override fun onMessage(buffer: DataChannel.Buffer?) {
-                Log.d(TAG, "onMessage: at line 86")
-            }
-        })
-    }*/
-
     fun createOffer(from: String, target: String) {
         Log.d(TAG, "user is available creating offer")
         val sdpObserver = object : SdpObserver {
@@ -152,12 +136,6 @@ class WebRTCManager(
 
         val mediaConstraints = MediaConstraints()
         mediaConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
-        mediaConstraints.optional.add(
-            MediaConstraints.KeyValuePair(
-                "OfferToReceiveVideo",
-                "false"
-            )
-        )
         peerConnection.createOffer(sdpObserver, mediaConstraints)
     }
 
@@ -217,6 +195,21 @@ class WebRTCManager(
         }
     }
 
+    override fun onAddTrack(receiver: RtpReceiver?, mediaStreams: Array<out MediaStream>?) {
+        super.onAddTrack(receiver, mediaStreams)
+        Log.d(TAG, "onAddTrack: invoked")
+    }
+
+    override fun onTrack(transceiver: RtpTransceiver?) {
+        super.onTrack(transceiver)
+        Log.d(TAG, "onTrack: invoked")
+    }
+
+    override fun onRemoveTrack(receiver: RtpReceiver?) {
+        super.onRemoveTrack(receiver)
+        Log.d(TAG, "onRemoveTrack: invoked")
+    }
+
     private fun playAudioTrack(audioTrack: AudioTrack?) {
 
     }
@@ -263,12 +256,6 @@ class WebRTCManager(
     fun answerToOffer(lTarget: String?) {
         val mediaConstraints = MediaConstraints()
         mediaConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
-        mediaConstraints.optional.add(
-            MediaConstraints.KeyValuePair(
-                "OfferToReceiveVideo",
-                "false"
-            )
-        )
         peerConnection.createAnswer(object : SdpObserver {
             override fun onCreateSuccess(desc: SessionDescription?) {
                 peerConnection.setLocalDescription(object : SdpObserver {
@@ -312,8 +299,8 @@ class WebRTCManager(
         Log.d(TAG, "startLocalVideo called ....")
         val localAudioSource = peerConnectionFactory.createAudioSource(MediaConstraints())
         val localAudioTrack =
-            peerConnectionFactory.createAudioTrack("local_track_audio", localAudioSource)
-        val localStream = peerConnectionFactory.createLocalMediaStream("local_stream")
+            peerConnectionFactory.createAudioTrack("ARDAMSa0", localAudioSource)
+        val localStream = peerConnectionFactory.createLocalMediaStream("ARDAMS")
         localStream.addTrack(localAudioTrack)
         peerConnection.addTrack(localAudioTrack)
     }
