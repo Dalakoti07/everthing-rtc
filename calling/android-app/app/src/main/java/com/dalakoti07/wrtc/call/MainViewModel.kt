@@ -171,6 +171,14 @@ class MainViewModel : ViewModel() {
                         )
                     }
                 }
+                if(it is MessageType.DisconnectFromPeer){
+                    _state.update {
+                        state.value.copy(
+                            isRtcEstablished = false,
+                            peerConnectionString = "",
+                        )
+                    }
+                }
                 sendMessageToUi(msg = it)
             }
         }

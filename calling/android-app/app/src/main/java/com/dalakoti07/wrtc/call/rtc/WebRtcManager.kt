@@ -1,8 +1,9 @@
 package com.dalakoti07.wrtc.call.rtc
 
+import android.content.Context
+import android.media.AudioManager
 import android.util.Log
 import com.dalakoti07.wrtc.call.CallApp
-import com.dalakoti07.wrtc.call.audio.AudioTrackPlayer
 import com.dalakoti07.wrtc.call.socket.MessageModel
 import com.dalakoti07.wrtc.call.socket.SocketConnection
 import kotlinx.coroutines.CoroutineScope
@@ -16,6 +17,7 @@ import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
 import org.webrtc.MediaStream
 import org.webrtc.PeerConnection
+import org.webrtc.PeerConnection.IceConnectionState
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.RtpReceiver
 import org.webrtc.RtpTransceiver
@@ -27,6 +29,7 @@ private const val TAG = "WebRtcManager"
 sealed class MessageType {
     data class Info(val msg: String) : MessageType()
     data object ConnectedToPeer : MessageType()
+    data object DisconnectFromPeer: MessageType()
 }
 
 class WebRTCManager(
@@ -34,6 +37,7 @@ class WebRTCManager(
     private val socketConnection: SocketConnection,
     private val userName: String,
 ) : PeerConnection.Observer {
+    private val audioManager = CallApp.getContext().getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
     private val scope = CoroutineScope(Dispatchers.IO)
     private val _messageStream = MutableSharedFlow<MessageType>()
@@ -159,15 +163,23 @@ class WebRTCManager(
     override fun onSignalingChange(p0: PeerConnection.SignalingState?) {
     }
 
-    override fun onIceConnectionChange(newState: PeerConnection.IceConnectionState?) {
+    override fun onIceConnectionChange(newState: IceConnectionState?) {
         when (newState) {
-            PeerConnection.IceConnectionState.CONNECTED,
-            PeerConnection.IceConnectionState.COMPLETED -> {
+            IceConnectionState.CONNECTED,
+            IceConnectionState.COMPLETED -> {
                 // Peers are connected
                 Log.d(TAG, "ICE Connection State: Connected ")
                 scope.launch {
                     _messageStream.emit(
                         MessageType.ConnectedToPeer
+                    )
+                }
+            }
+            IceConnectionState.DISCONNECTED, IceConnectionState.CLOSED->{
+                Log.d(TAG, "ICE Connection State: DISCONNECTED or CLOSED")
+                scope.launch {
+                    _messageStream.emit(
+                        MessageType.DisconnectFromPeer
                     )
                 }
             }
@@ -211,6 +223,22 @@ class WebRTCManager(
     override fun onAddTrack(receiver: RtpReceiver?, mediaStreams: Array<out MediaStream>?) {
         super.onAddTrack(receiver, mediaStreams)
         Log.d(TAG, "onAddTrack: invoked")
+        //routeAudioToSpeaker()
+    }
+
+    private fun routeAudioToSpeaker() {
+        // Request audio focus for playback
+        audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+        // Set mode to MODE_IN_COMMUNICATION as recommended for VoIP
+        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+        // Force audio to come out of the speaker
+        audioManager.isSpeakerphoneOn = true
+    }
+
+    fun restoreAudioSettings(context: Context) {
+        audioManager.isSpeakerphoneOn = false
+        audioManager.mode = AudioManager.MODE_NORMAL
+        audioManager.abandonAudioFocus(null)
     }
 
     override fun onTrack(transceiver: RtpTransceiver?) {

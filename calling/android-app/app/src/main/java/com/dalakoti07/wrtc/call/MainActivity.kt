@@ -247,10 +247,20 @@ fun HomeScreenContent(
                     }
                 }
             } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Button(onClick = {}) {
+                        Text(text = "Mute")
+                    }
+                    Button(onClick = {}) {
+                        Text(text = "Speaker")
+                    }
+                }
                 Button(
                     onClick = {
                         dispatchAction(
-                            // todo correct this
                             MainActions.EndCall("")
                         )
                     },
@@ -258,7 +268,9 @@ fun HomeScreenContent(
                         contentColor = Color.White,
                         containerColor = Color(0xFFFA7070),
                     ),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(
+                        top = 10.dp,
+                    ),
                 ) {
                     Text(text = "End Call")
                 }
