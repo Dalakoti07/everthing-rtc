@@ -170,8 +170,7 @@ class MainViewModel : ViewModel() {
                             peerConnectionString = "Is connected to peer ${state.value.isConnectToPeer}",
                         )
                     }
-                }
-                if(it is MessageType.DisconnectFromPeer){
+                } else if(it is MessageType.DisconnectFromPeer){
                     _state.update {
                         state.value.copy(
                             isRtcEstablished = false,
@@ -200,12 +199,11 @@ class MainViewModel : ViewModel() {
                 socketConnection.initSocket(actions.name)
             }
             is MainActions.AcceptIncomingConnection -> {
-                // todo do add view for confirmation, and then take further actions
                 val session = SessionDescription(
                     SessionDescription.Type.OFFER,
                     newOfferMessage.data.toString()
                 )
-                // move to new place
+                // create new RTC Manager and
                 if(!::rtcManager.isInitialized){
                     rtcManager = WebRTCManager(
                         socketConnection = socketConnection,
@@ -229,7 +227,6 @@ class MainViewModel : ViewModel() {
             }
             is MainActions.EndCall->{
                 rtcManager.peerConnection.close()
-                //rtcManager.setLocalAudioStream()
             }
         }
     }

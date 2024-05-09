@@ -16,6 +16,7 @@ import org.webrtc.DataChannel
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
 import org.webrtc.MediaStream
+import org.webrtc.MediaStreamTrack
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnection.IceConnectionState
 import org.webrtc.PeerConnectionFactory
@@ -296,14 +297,17 @@ class WebRTCManager(
 
     fun answerToOffer(lTarget: String?) {
         val mediaConstraints = MediaConstraints()
+        addAudioTransceiver()
         mediaConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
         peerConnection.createAnswer(object : SdpObserver {
             override fun onCreateSuccess(desc: SessionDescription?) {
                 peerConnection.setLocalDescription(object : SdpObserver {
                     override fun onCreateSuccess(p0: SessionDescription?) {
+                        Log.d(TAG, "onCreateSuccess: $p0")
                     }
 
                     override fun onSetSuccess() {
+                        Log.d(TAG, "onSetSuccess: ${desc?.description}")
                         val answer = hashMapOf(
                             "sdp" to desc?.description,
                             "type" to desc?.type
@@ -334,6 +338,11 @@ class WebRTCManager(
             }
 
         }, mediaConstraints)
+    }
+
+    private fun addAudioTransceiver() {
+        val transceiver = peerConnection.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO)
+        transceiver?.setDirection(RtpTransceiver.RtpTransceiverDirection.SEND_RECV)
     }
 
 
