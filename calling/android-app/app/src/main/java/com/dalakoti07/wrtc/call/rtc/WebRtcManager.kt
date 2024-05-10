@@ -24,6 +24,7 @@ import org.webrtc.RtpReceiver
 import org.webrtc.RtpTransceiver
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
+import kotlin.math.log
 
 private const val TAG = "WebRtcManager"
 
@@ -37,6 +38,7 @@ class WebRTCManager(
     private var target: String,
     private val socketConnection: SocketConnection,
     private val userName: String,
+    private val isCaller: Boolean,
 ) : PeerConnection.Observer {
     private val audioManager = CallApp.getContext().getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
@@ -68,6 +70,7 @@ class WebRTCManager(
     lateinit var peerConnectionFactory: PeerConnectionFactory
     lateinit var peerConnection: PeerConnection
     private lateinit var dataChannel: DataChannel
+    private lateinit var audioTrack: MediaStreamTrack
 
     init {
         initializePeerConnectionFactory()
@@ -95,7 +98,6 @@ class WebRTCManager(
     private fun createPeerConnection() {
         peerConnection =
             peerConnectionFactory.createPeerConnection(iceServers, this)!!
-        setUpAudio()
     }
 
     private fun setUpAudio() {
@@ -103,15 +105,16 @@ class WebRTCManager(
         audioConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
 
         val audioSource = peerConnectionFactory.createAudioSource(audioConstraints)
-        val audioTrack = peerConnectionFactory.createAudioTrack("ARDAMSa0", audioSource)
+        audioTrack = peerConnectionFactory.createAudioTrack("ARDAMSa0", audioSource)
         val transceiver = peerConnection.addTransceiver(audioTrack)
         transceiver.direction = RtpTransceiver.RtpTransceiverDirection.SEND_RECV
 
         audioTrack.setEnabled(true)
-        audioTrack.setVolume(1.0)
+        (audioTrack as AudioTrack?)?.setVolume(1.0)
     }
 
     fun createOffer(from: String, target: String) {
+        setUpAudio()
         Log.d(TAG, "user is available creating offer")
         val sdpObserver = object : SdpObserver {
             override fun onCreateSuccess(desc: SessionDescription?) {
@@ -121,7 +124,7 @@ class WebRTCManager(
                     }
 
                     override fun onSetSuccess() {
-                        Log.d(TAG, "onSetSuccess: ")
+                        Log.d(TAG, "onSetSuccess: offer -> ${desc?.description}")
                         val offer = hashMapOf(
                             "sdp" to desc?.description,
                             "type" to desc?.type
@@ -135,11 +138,11 @@ class WebRTCManager(
                     }
 
                     override fun onCreateFailure(error: String?) {
-                        Log.d(TAG, "error in creating offer $error")
+                        Log.e(TAG, "error in creating offer $error")
                     }
 
                     override fun onSetFailure(error: String?) {
-                        Log.d(TAG, "onSetFailure: err-> $error")
+                        Log.e(TAG, "onSetFailure: err-> $error")
                     }
                 }, desc)
                 // Send offer to signaling server
@@ -147,9 +150,15 @@ class WebRTCManager(
                 // Upon receiving answer, set it as remote description
             }
 
-            override fun onSetSuccess() {}
-            override fun onCreateFailure(error: String?) {}
-            override fun onSetFailure(error: String?) {}
+            override fun onSetSuccess() {
+                Log.d(TAG, "createOffer onSetSuccess: ")
+            }
+            override fun onCreateFailure(error: String?) {
+                Log.e(TAG, "createOffer onCreateFailure: ", )
+            }
+            override fun onSetFailure(error: String?) {
+                Log.e(TAG, "createOffer onSetFailure: ", )
+            }
         }
 
         val mediaConstraints = MediaConstraints()
@@ -212,6 +221,7 @@ class WebRTCManager(
     }
 
     override fun onIceCandidatesRemoved(p0: Array<out IceCandidate>?) {
+        Log.d(TAG, "onIceCandidatesRemoved: ")
     }
 
     override fun onAddStream(mediaStream: MediaStream?) {
@@ -245,6 +255,7 @@ class WebRTCManager(
     override fun onTrack(transceiver: RtpTransceiver?) {
         super.onTrack(transceiver)
         Log.d(TAG, "onTrack: invoked")
+
     }
 
     override fun onRemoveTrack(receiver: RtpReceiver?) {
@@ -252,11 +263,8 @@ class WebRTCManager(
         Log.d(TAG, "onRemoveTrack: invoked")
     }
 
-    private fun playAudioTrack(audioTrack: AudioTrack?) {
-
-    }
-
     override fun onRemoveStream(p0: MediaStream?) {
+        Log.d(TAG, "onRemoveStream: ...")
     }
 
     override fun onDataChannel(p0: DataChannel?) {
@@ -275,39 +283,46 @@ class WebRTCManager(
     }
 
     override fun onRenegotiationNeeded() {
+        Log.d(TAG, "onRenegotiationNeeded: ....")
     }
 
     fun onRemoteSessionReceived(session: SessionDescription) {
         peerConnection.setRemoteDescription(object : SdpObserver {
             override fun onCreateSuccess(p0: SessionDescription?) {
-
+                Log.d(TAG, "onRemoteSessionReceived onCreateSuccess: ")
             }
 
             override fun onSetSuccess() {
+                Log.d(TAG, "onRemoteSessionReceived onSetSuccess: ")
             }
 
             override fun onCreateFailure(p0: String?) {
+                Log.e(TAG, "onRemoteSessionReceived onCreateFailure: ", )
             }
 
             override fun onSetFailure(p0: String?) {
+                Log.e(TAG, "onRemoteSessionReceived onSetFailure: ", )
             }
 
         }, session)
     }
 
     fun answerToOffer(lTarget: String?) {
-        val mediaConstraints = MediaConstraints()
-        addAudioTransceiver()
-        mediaConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+        setUpAudio()
+        checkTransceivers()
+        val mediaConstraints = MediaConstraints().apply {
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+        }
         peerConnection.createAnswer(object : SdpObserver {
             override fun onCreateSuccess(desc: SessionDescription?) {
                 peerConnection.setLocalDescription(object : SdpObserver {
                     override fun onCreateSuccess(p0: SessionDescription?) {
-                        Log.d(TAG, "onCreateSuccess: $p0")
+                        Log.d(TAG, "answerToOffer onCreateSuccess: $p0")
                     }
 
                     override fun onSetSuccess() {
-                        Log.d(TAG, "onSetSuccess: ${desc?.description}")
+                        // this does not contains a=sendrcv
+                        Log.d(TAG, "answerToOffer onSetSuccess: answer ${desc?.description}")
                         val answer = hashMapOf(
                             "sdp" to desc?.description,
                             "type" to desc?.type
@@ -320,29 +335,46 @@ class WebRTCManager(
                     }
 
                     override fun onCreateFailure(p0: String?) {
+                        Log.e(TAG, "onCreateFailure: $p0")
                     }
 
                     override fun onSetFailure(p0: String?) {
+                        Log.e(TAG, "onSetFailure: $p0", )
                     }
 
                 }, desc)
             }
 
             override fun onSetSuccess() {
+                Log.d(TAG, "answerToOffer onSetSuccess: ")
             }
 
             override fun onCreateFailure(p0: String?) {
+                Log.e(TAG, "answerToOffer onCreateFailure: ", )
             }
 
             override fun onSetFailure(p0: String?) {
+                Log.e(TAG, "answerToOffer onSetFailure: ", )
             }
 
         }, mediaConstraints)
     }
 
-    private fun addAudioTransceiver() {
-        val transceiver = peerConnection.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO)
-        transceiver?.setDirection(RtpTransceiver.RtpTransceiverDirection.SEND_RECV)
+    private fun checkTransceivers() {
+        Log.d(TAG, "checkTransceivers: before manipulation ")
+        peerConnection.transceivers.forEach {
+            Log.d(TAG, "Transceiver: track=${it.receiver.track()?.id()} kind=${it.receiver.track()?.kind()} direction=${it.direction}")
+        }
+        // Check if a transceiver for this track already exists and set it to SEND_RECV
+        val transceiver = peerConnection.transceivers.find {
+            it.receiver.track()?.id() == audioTrack.id()
+        } ?: peerConnection.addTransceiver(audioTrack)
+
+        transceiver.setDirection(RtpTransceiver.RtpTransceiverDirection.SEND_RECV)
+        Log.d(TAG, "checkTransceivers: again list")
+        peerConnection.transceivers.forEach {
+            Log.d(TAG, "Transceiver: track=${it.receiver.track()?.id()} kind=${it.receiver.track()?.kind()} direction=${it.direction}")
+        }
     }
 
 

@@ -103,6 +103,7 @@ class MainViewModel : ViewModel() {
                     socketConnection = socketConnection,
                     userName = state.value.connectedAs,
                     target = message.data.toString(),
+                    isCaller = true,
                 )
                 consumeEventsFromRTC()
                 rtcManager.updateTarget(message.data.toString())
@@ -209,6 +210,7 @@ class MainViewModel : ViewModel() {
                         socketConnection = socketConnection,
                         userName = state.value.connectedAs,
                         target = newOfferMessage.name.toString(),
+                        isCaller = false,
                     )
                     consumeEventsFromRTC()
                 }
