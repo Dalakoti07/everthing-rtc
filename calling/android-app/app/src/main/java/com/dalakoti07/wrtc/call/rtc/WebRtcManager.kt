@@ -225,16 +225,23 @@ class WebRTCManager(
     }
 
     override fun onAddStream(mediaStream: MediaStream?) {
+        Log.d(TAG, "onAddStream: called -> ${mediaStream?.audioTracks?.size}")
         mediaStream?.audioTracks?.forEach { audioTrack ->
-            Log.d(TAG, "onAddStream: $audioTrack")
+            Log.d(TAG, "onAddStream: track id -> ${audioTrack.id()}")
             audioTrack.setEnabled(true)
         }
     }
 
     override fun onAddTrack(receiver: RtpReceiver?, mediaStreams: Array<out MediaStream>?) {
         super.onAddTrack(receiver, mediaStreams)
-        Log.d(TAG, "onAddTrack: invoked")
+        Log.d(TAG, "onAddTrack: invoked media size -> ${mediaStreams?.size}")
         //routeAudioToSpeaker()
+        mediaStreams?.forEach { mediaStream ->
+            mediaStream.audioTracks.forEach { audioTrack ->
+                audioTrack.setEnabled(true)
+                Log.d(TAG, "onAddTrack: track -> ${audioTrack.id()}")
+            }
+        }
     }
 
     private fun routeAudioToSpeaker() {
