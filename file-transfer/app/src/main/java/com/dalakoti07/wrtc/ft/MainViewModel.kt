@@ -1,8 +1,10 @@
 package com.dalakoti07.wrtc.ft
 
+import android.os.Environment
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dalakoti07.wrtc.ft.rtc.FileMeta
 import com.dalakoti07.wrtc.ft.rtc.IceCandidateModel
 import com.dalakoti07.wrtc.ft.rtc.MessageType
 import com.dalakoti07.wrtc.ft.rtc.WebRTCManager
@@ -16,19 +18,20 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
+import java.io.ByteArrayOutputStream
+import java.io.File
 
 private const val TAG = "MainViewModel"
 
 class MainViewModel : ViewModel() {
 
-    private val _state = MutableStateFlow(
-        MainScreenState()
-    )
+    private val _state = MutableStateFlow(MainScreenState())
     val state: StateFlow<MainScreenState>
         get() = _state
 
@@ -42,6 +45,11 @@ class MainViewModel : ViewModel() {
     private val gson = Gson()
     private lateinit var rtcManager: WebRTCManager
 
+    // File reassembly — accumulate binary chunks until FILE_END
+    private var receivingMeta: FileMeta? = null
+    private val receivedBuffer = ByteArrayOutputStream()
+    private var receivedChunkCount = 0
+
     init {
         listenToSocketEvents()
     }
@@ -52,51 +60,33 @@ class MainViewModel : ViewModel() {
                 when (it) {
                     is SocketEvents.ConnectionChange -> {
                         if (!it.isConnected) {
-                            _state.update {
-                                state.value.copy(
-                                    isConnectedToServer = false,
-                                    connectedAs = "",
-                                )
+                            _state.update { s ->
+                                s.copy(isConnectedToServer = false, connectedAs = "")
                             }
                         }
                     }
-
-                    is SocketEvents.OnSocketMessageReceived -> {
-                        handleNewMessage(it.message)
-                    }
-
-                    is SocketEvents.ConnectionError -> {
-                        Log.d(TAG, "socket ConnectionError ${it.error}")
-                    }
+                    is SocketEvents.OnSocketMessageReceived -> handleNewMessage(it.message)
+                    is SocketEvents.ConnectionError -> Log.d(TAG, "socket error: ${it.error}")
                 }
             }
         }
     }
 
     private fun handleNewMessage(message: MessageModel) {
-        Log.d(TAG, "handleNewMessage in VM")
+        Log.d(TAG, "handleNewMessage: ${message.type}")
         when (message.type) {
-            "user_already_exists" -> {
-                sendMessageToUi(MessageType.Info("User already exists"))
-            }
+            "user_already_exists" -> sendMessageToUi(MessageType.Info("User already exists"))
             "user_stored" -> {
-                Log.d(TAG, "User stored in socket")
                 sendMessageToUi(MessageType.Info("User stored in socket"))
-                _state.update {
-                    state.value.copy(
-                        isConnectedToServer = true,
-                        connectedAs = message.data.toString(),
-                    )
+                _state.update { s ->
+                    s.copy(isConnectedToServer = true, connectedAs = message.data.toString())
                 }
             }
             "transfer_response" -> {
-                Log.d(TAG, "transfer_response: ")
-                // user is online / offline
                 if (message.data == null) {
                     sendMessageToUi(MessageType.Info("User is not available"))
                     return
                 }
-                // important to update target
                 rtcManager = WebRTCManager(
                     socketConnection = socketConnection,
                     userName = state.value.connectedAs,
@@ -104,12 +94,8 @@ class MainViewModel : ViewModel() {
                 )
                 consumeEventsFromRTC()
                 rtcManager.updateTarget(message.data.toString())
-                sendMessageToUi(MessageType.Info("User is Connected to ${message.data}"))
-                _state.update {
-                    state.value.copy(
-                        isConnectToPeer = message.data.toString(),
-                    )
-                }
+                sendMessageToUi(MessageType.Info("Connected to ${message.data}"))
+                _state.update { s -> s.copy(isConnectToPeer = message.data.toString()) }
                 rtcManager.createOffer(
                     from = state.value.connectedAs,
                     target = message.data.toString(),
@@ -117,38 +103,22 @@ class MainViewModel : ViewModel() {
             }
             "offer_received" -> {
                 newOfferMessage = message
-                Log.d(TAG, "offer_received ")
-                _state.update {
-                    state.value.copy(
-                        inComingRequestFrom = message.name.orEmpty(),
-                    )
-                }
-                viewModelScope.launch {
-                    _oneTimeEvents.emit(
-                        MainOneTimeEvents.GotInvite
-                    )
-                }
+                _state.update { s -> s.copy(inComingRequestFrom = message.name.orEmpty()) }
+                viewModelScope.launch { _oneTimeEvents.emit(MainOneTimeEvents.GotInvite) }
             }
             "answer_received" -> {
-                val session = SessionDescription(
-                    SessionDescription.Type.ANSWER,
-                    message.data.toString()
+                rtcManager.onRemoteSessionReceived(
+                    SessionDescription(SessionDescription.Type.ANSWER, message.data.toString())
                 )
-                Log.d(TAG, "onNewMessage: answer received $session")
-                rtcManager.onRemoteSessionReceived(session)
             }
             "ice_candidate" -> {
                 try {
-                    val receivingCandidate = gson.fromJson(
-                        gson.toJson(message.data),
-                        IceCandidateModel::class.java
-                    )
-                    Log.d(TAG, "onNewMessage: ice candidate $receivingCandidate")
+                    val candidate = gson.fromJson(gson.toJson(message.data), IceCandidateModel::class.java)
                     rtcManager.addIceCandidate(
                         IceCandidate(
-                            receivingCandidate.sdpMid,
-                            Math.toIntExact(receivingCandidate.sdpMLineIndex.toLong()),
-                            receivingCandidate.sdpCandidate
+                            candidate.sdpMid,
+                            Math.toIntExact(candidate.sdpMLineIndex.toLong()),
+                            candidate.sdpCandidate
                         )
                     )
                 } catch (e: Exception) {
@@ -160,46 +130,101 @@ class MainViewModel : ViewModel() {
 
     private fun consumeEventsFromRTC() {
         viewModelScope.launch {
-            rtcManager.messageStream.collectLatest {
-                if(it is MessageType.ConnectedToPeer){
-                    _state.update {
-                        state.value.copy(
-                            isRtcEstablished = true,
-                            peerConnectionString = "Is connected to peer ${state.value.isConnectToPeer}",
+            // Use collect (not collectLatest) so no event is dropped mid-transfer
+            rtcManager.messageStream.collect { event ->
+                when (event) {
+                    is MessageType.ConnectedToPeer -> {
+                        _state.update { s ->
+                            s.copy(
+                                isRtcEstablished = true,
+                                peerConnectionString = "Connected to peer ${s.isConnectToPeer}",
+                            )
+                        }
+                    }
+
+                    // ── Sender-side progress ──────────────────────────────────
+                    is MessageType.FileSendProgress -> {
+                        _state.update { s ->
+                            s.copy(
+                                sendProgress = event.progress,
+                                sendingFileName = event.fileName,
+                            )
+                        }
+                    }
+
+                    // ── Receiver-side: metadata arrives first ─────────────────
+                    is MessageType.FileMetaReceived -> {
+                        receivingMeta = event.meta
+                        receivedBuffer.reset()
+                        receivedChunkCount = 0
+                        _state.update { s ->
+                            s.copy(
+                                receivingFileName = event.meta.name,
+                                receiveProgress = 0f,
+                                receivedFilePath = null,
+                            )
+                        }
+                        sendMessageToUi(
+                            MessageType.Info("Incoming file: ${event.meta.name} (${event.meta.size / 1024} KB)")
                         )
                     }
+
+                    // ── Receiver-side: each binary chunk ──────────────────────
+                    is MessageType.FileChunk -> {
+                        receivedBuffer.write(event.bytes)
+                        receivedChunkCount++
+                        val meta = receivingMeta
+                        if (meta != null && meta.totalChunks > 0) {
+                            val progress = receivedChunkCount.toFloat() / meta.totalChunks
+                            _state.update { s -> s.copy(receiveProgress = progress.coerceAtMost(1f)) }
+                        }
+                    }
+
+                    // ── Receiver-side: all chunks arrived, save file ───────────
+                    is MessageType.FileTransferDone -> {
+                        val meta = receivingMeta ?: return@collect
+                        val path = saveFile(meta.name, receivedBuffer.toByteArray())
+                        receivedBuffer.reset()
+                        receivedChunkCount = 0
+                        receivingMeta = null
+                        _state.update { s ->
+                            s.copy(receiveProgress = 1f, receivedFilePath = path)
+                        }
+                        sendMessageToUi(MessageType.Info("File saved: ${meta.name}"))
+                    }
+
+                    else -> sendMessageToUi(event)
                 }
-                if(it is MessageType.MessageByMe){
-                    Log.d(TAG, "consumeEventsFromRTC: ${it.msg}")
-                }
-                sendMessageToUi(msg = it)
             }
         }
     }
 
+    private fun saveFile(name: String, bytes: ByteArray): String {
+        val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val file = File(dir, name)
+        file.writeBytes(bytes)
+        Log.d(TAG, "File saved: ${file.absolutePath}")
+        return file.absolutePath
+    }
+
     private fun sendMessageToUi(msg: MessageType) {
         viewModelScope.launch(Dispatchers.IO) {
-            _state.update {
-                state.value.copy(
-                    messagesFromServer = state.value.messagesFromServer + msg,
-                )
+            _state.update { s ->
+                s.copy(messagesFromServer = s.messagesFromServer + msg)
             }
         }
     }
 
     fun dispatchAction(actions: MainActions) {
         when (actions) {
-            is MainActions.ConnectAs -> {
-                socketConnection.initSocket(actions.name)
-            }
+            is MainActions.ConnectAs -> socketConnection.initSocket(actions.name)
+
             is MainActions.AcceptIncomingConnection -> {
-                // todo do add view for confirmation, and then take further actions
                 val session = SessionDescription(
                     SessionDescription.Type.OFFER,
                     newOfferMessage.data.toString()
                 )
-                // move to new place
-                if(!::rtcManager.isInitialized){
+                if (!::rtcManager.isInitialized) {
                     rtcManager = WebRTCManager(
                         socketConnection = socketConnection,
                         userName = state.value.connectedAs,
@@ -210,6 +235,7 @@ class MainViewModel : ViewModel() {
                 rtcManager.onRemoteSessionReceived(session)
                 rtcManager.answerToOffer(newOfferMessage.name)
             }
+
             is MainActions.ConnectToUser -> {
                 socketConnection.sendMessageToSocket(
                     MessageModel(
@@ -220,10 +246,10 @@ class MainViewModel : ViewModel() {
                     )
                 )
             }
-            is MainActions.SendChatMessage->{
-                rtcManager.sendMessage(actions.msg)
-            }
+
+            is MainActions.SendChatMessage -> rtcManager.sendMessage(actions.msg)
+
+            is MainActions.SendFile -> rtcManager.sendFile(actions.uri)
         }
     }
-
 }
