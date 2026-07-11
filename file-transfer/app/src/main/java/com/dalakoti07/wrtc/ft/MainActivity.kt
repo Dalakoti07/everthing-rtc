@@ -1,5 +1,6 @@
 package com.dalakoti07.wrtc.ft
 
+import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -15,18 +16,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,12 +42,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.dalakoti07.wrtc.ft.rtc.MessageType
 import com.dalakoti07.wrtc.ft.ui.theme.FiletransferappTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
-
-private const val TAG = "MainActivity"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,322 +72,219 @@ fun MainScreen() {
     val state by viewModel.state.collectAsState()
     val events = rememberFlowWithLifecycle(flow = viewModel.oneTimeEvents)
 
-    var showIncomingRequestDialog by remember { mutableStateOf(false) }
+    var showIncomingDialog by remember { mutableStateOf(false) }
 
-    val fileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let { viewModel.dispatchAction(MainActions.SendFile(it)) }
+    // Request RECORD_AUDIO on first composition
+    val micLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) android.util.Log.w("MainActivity", "RECORD_AUDIO denied")
+    }
+    LaunchedEffect(Unit) {
+        micLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
 
-    LaunchedEffect(key1 = events) {
+    LaunchedEffect(events) {
         events.collectLatest {
             when (it) {
-                is MainOneTimeEvents.GotInvite -> showIncomingRequestDialog = true
+                is MainOneTimeEvents.GotInvite -> showIncomingDialog = true
             }
         }
     }
 
-    if (showIncomingRequestDialog) {
-        DialogForIncomingRequest(
-            onDismiss = { showIncomingRequestDialog = false },
+    if (showIncomingDialog) {
+        IncomingCallDialog(
+            caller = state.inComingRequestFrom,
             onAccept = {
                 viewModel.dispatchAction(MainActions.AcceptIncomingConnection)
-                showIncomingRequestDialog = false
+                showIncomingDialog = false
             },
-            inviteFrom = state.inComingRequestFrom,
+            onDecline = { showIncomingDialog = false },
         )
     }
 
-    HomeScreenContent(
-        state = state,
-        onPickFile = { fileLauncher.launch("*/*") },
-        dispatchAction = { viewModel.dispatchAction(it) },
-    )
+    if (state.isRtcEstablished) {
+        InCallScreen(state = state, dispatchAction = { viewModel.dispatchAction(it) })
+    } else {
+        ConnectScreen(state = state, dispatchAction = { viewModel.dispatchAction(it) })
+    }
 }
 
+// ── Connect screen ────────────────────────────────────────────────────────────
+
 @Composable
-fun HomeScreenContent(
+fun ConnectScreen(
     state: MainScreenState,
-    onPickFile: () -> Unit = {},
-    dispatchAction: (MainActions) -> Unit = {},
+    dispatchAction: (MainActions) -> Unit,
 ) {
-    var yourName by remember { mutableStateOf("") }
-    var connectTo by remember { mutableStateOf("") }
-    var chatMessage by remember { mutableStateOf("") }
-    val listState = rememberLazyListState()
+    var nameInput by remember { mutableStateOf("") }
 
-    // Auto-scroll to bottom when new messages arrive
-    LaunchedEffect(state.messagesFromServer.size) {
-        if (state.messagesFromServer.isNotEmpty()) {
-            listState.animateScrollToItem(state.messagesFromServer.size - 1)
-        }
-    }
-
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(color = Color(0xFFFEFDED)),
+            .background(Color(0xFFFEFDED))
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.padding(bottom = 130.dp),
-            content = {
-                item {
-                    Text(
-                        text = if (state.peerConnectionString.isNotEmpty()) state.peerConnectionString
-                        else if (state.isConnectedToServer) "Connected as ${state.connectedAs}"
-                        else "Not connected to server",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(color = Color(0xFFD20062))
-                            .padding(10.dp),
-                        color = Color.White,
-                    )
-                }
+        Text(
+            text = if (state.isConnectedToServer) "Connected as ${state.connectedAs}"
+                   else "WebRTC Audio Call",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFFD20062),
+        )
 
-                items(state.messagesFromServer.size) { index ->
-                    when (val current = state.messagesFromServer[index]) {
-                        is MessageType.Info -> Text(
-                            text = current.msg,
-                            modifier = Modifier
-                                .padding(top = 10.dp, start = 10.dp)
-                                .fillMaxWidth(),
-                            fontSize = 13.sp,
-                            color = Color.Gray,
-                        )
-                        is MessageType.MessageByMe -> Row(
-                            modifier = Modifier
-                                .padding(top = 10.dp, start = 10.dp)
-                                .fillMaxWidth(),
-                        ) {
-                            Spacer(Modifier.weight(1f))
-                            Text(
-                                text = current.msg,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .background(Color(0xFF240A34), RoundedCornerShape(10.dp))
-                                    .padding(8.dp),
-                                color = Color.White,
-                            )
-                        }
-                        is MessageType.MessageByPeer -> Row(
-                            modifier = Modifier
-                                .padding(top = 10.dp, start = 10.dp)
-                                .fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = current.msg,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .background(Color(0xFFFA7070), RoundedCornerShape(10.dp))
-                                    .padding(8.dp),
-                                color = Color.White,
-                            )
-                            Spacer(Modifier.weight(1f))
-                        }
-                        else -> {}
+        Spacer(Modifier.height(32.dp))
+
+        TextField(
+            value = nameInput,
+            onValueChange = { nameInput = it },
+            placeholder = {
+                Text(if (state.isConnectedToServer) "Enter peer name" else "Enter your name")
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = TextFieldDefaults.colors(
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedContainerColor = Color(0xFFFA7070).copy(alpha = 0.3f),
+                unfocusedContainerColor = Color(0xFFFA7070).copy(alpha = 0.15f),
+            ),
+            shape = RoundedCornerShape(12.dp),
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        Button(
+            onClick = {
+                if (nameInput.isNotBlank()) {
+                    if (state.isConnectedToServer) {
+                        dispatchAction(MainActions.ConnectToUser(nameInput))
+                    } else {
+                        dispatchAction(MainActions.ConnectAs(nameInput))
                     }
+                    nameInput = ""
                 }
             },
-        )
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(Color(0xFFFEFDED))
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-        ) {
-            // ── File transfer progress bars ────────────────────────────
-            if (state.isRtcEstablished) {
-                if (state.sendProgress > 0f) {
-                    TransferProgressRow(
-                        label = if (state.sendProgress < 1f)
-                            "Sending ${state.sendingFileName}"
-                        else "Sent ${state.sendingFileName}",
-                        progress = state.sendProgress,
-                        color = Color(0xFF240A34),
-                    )
-                    Spacer(Modifier.height(4.dp))
-                }
-
-                if (state.receiveProgress > 0f) {
-                    TransferProgressRow(
-                        label = if (state.receiveProgress < 1f)
-                            "Receiving ${state.receivingFileName}"
-                        else "Received ${state.receivingFileName}",
-                        progress = state.receiveProgress,
-                        color = Color(0xFFD20062),
-                    )
-                    state.receivedFilePath?.let { path ->
-                        Text(
-                            text = "Saved: $path",
-                            fontSize = 11.sp,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
-                        )
-                    }
-                    Spacer(Modifier.height(4.dp))
-                }
-            }
-
-            // ── Input row ─────────────────────────────────────────────
-            if (state.isRtcEstablished) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    TextField(
-                        modifier = Modifier.weight(1f),
-                        value = chatMessage,
-                        onValueChange = { chatMessage = it },
-                        placeholder = { Text("Message") },
-                        colors = TextFieldDefaults.colors(
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedContainerColor = Color(0xFFFA7070),
-                            unfocusedContainerColor = Color(0xFFFA7070),
-                        ),
-                        shape = RoundedCornerShape(15.dp),
-                    )
-                    Button(
-                        onClick = {
-                            if (chatMessage.isNotBlank()) {
-                                dispatchAction(MainActions.SendChatMessage(chatMessage))
-                                chatMessage = ""
-                            }
-                        },
-                        modifier = Modifier.padding(start = 6.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            contentColor = Color.White,
-                            containerColor = Color(0xFFFA7070),
-                        ),
-                    ) { Text("Send") }
-
-                    Button(
-                        onClick = onPickFile,
-                        modifier = Modifier.padding(start = 6.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            contentColor = Color.White,
-                            containerColor = Color(0xFF240A34),
-                        ),
-                    ) { Text("File") }
-                }
-            } else {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    TextField(
-                        modifier = Modifier.weight(1f),
-                        value = if (state.connectedAs.isNotEmpty()) connectTo else yourName,
-                        onValueChange = {
-                            if (state.connectedAs.isNotEmpty()) connectTo = it else yourName = it
-                        },
-                        placeholder = {
-                            Text(if (state.connectedAs.isNotEmpty()) "Peer name" else "Your name")
-                        },
-                        colors = TextFieldDefaults.colors(
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedContainerColor = Color(0xFFFA7070),
-                            unfocusedContainerColor = Color(0xFFFA7070),
-                        ),
-                        shape = RoundedCornerShape(15.dp),
-                    )
-                    Button(
-                        onClick = {
-                            if (state.connectedAs.isNotEmpty()) {
-                                dispatchAction(MainActions.ConnectToUser(connectTo))
-                            } else {
-                                dispatchAction(MainActions.ConnectAs(yourName))
-                            }
-                        },
-                        modifier = Modifier.padding(start = 10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            contentColor = Color.White,
-                            containerColor = Color(0xFFFA7070),
-                        ),
-                    ) { Text("GO") }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun TransferProgressRow(label: String, progress: Float, color: Color) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFD20062),
+                contentColor = Color.White,
+            ),
+            shape = RoundedCornerShape(12.dp),
         ) {
-            Text(text = label, fontSize = 12.sp, color = color)
             Text(
-                text = "${(progress * 100).toInt()}%",
-                fontSize = 12.sp,
-                color = color,
+                text = if (state.isConnectedToServer) "Call" else "Join",
+                fontSize = 16.sp,
             )
         }
-        Spacer(Modifier.height(2.dp))
-        LinearProgressIndicator(
-            progress = progress,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp),
-            color = color,
-            trackColor = color.copy(alpha = 0.2f),
-        )
     }
 }
 
-@Preview
-@Composable
-fun DialogForIncomingRequestPreview() {
-    FiletransferappTheme {
-        DialogForIncomingRequest(onAccept = {}, onDismiss = {}, inviteFrom = "Shah Rukh Khan")
-    }
-}
+// ── In-call screen ────────────────────────────────────────────────────────────
 
 @Composable
-fun DialogForIncomingRequest(
-    onDismiss: () -> Unit = {},
-    onAccept: () -> Unit = {},
-    inviteFrom: String,
+fun InCallScreen(
+    state: MainScreenState,
+    dispatchAction: (MainActions) -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF1A1A2E))
+            .padding(32.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // Status
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.height(48.dp))
+            Text(text = "●  On call", color = Color(0xFF4CAF50), fontSize = 13.sp)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = state.connectedToPeer.ifEmpty { "Peer" },
+                color = Color.White,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+
+        // Controls
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            CallControlButton(
+                label = if (state.isMuted) "Unmute" else "Mute",
+                color = if (state.isMuted) Color(0xFF555555) else Color(0xFF333355),
+                onClick = { dispatchAction(MainActions.MuteAudio(!state.isMuted)) },
+            )
+            CallControlButton(
+                label = "End",
+                color = Color(0xFFCC0000),
+                onClick = { dispatchAction(MainActions.EndCall) },
+            )
+            CallControlButton(
+                label = if (state.isSpeakerOn) "Earpiece" else "Speaker",
+                color = Color(0xFF333355),
+                onClick = { dispatchAction(MainActions.ToggleSpeaker(!state.isSpeakerOn)) },
+            )
+        }
+
+        Spacer(Modifier.height(32.dp))
+    }
+}
+
+@Composable
+fun CallControlButton(label: String, color: Color, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = Color.White),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Text(text = label, fontSize = 14.sp)
+    }
+}
+
+// ── Incoming call dialog ──────────────────────────────────────────────────────
+
+@Composable
+fun IncomingCallDialog(caller: String, onAccept: () -> Unit, onDecline: () -> Unit) {
+    Dialog(onDismissRequest = onDecline) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(color = Color.White)
-                .padding(8.dp),
+                .background(Color.White, RoundedCornerShape(16.dp))
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(text = "File transfer request from $inviteFrom")
+            Text(
+                text = "Incoming call from",
+                fontSize = 14.sp,
+                color = Color.Gray,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = caller,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1A1A2E),
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(24.dp))
             Row(
-                modifier = Modifier
-                    .padding(horizontal = 20.dp)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.padding(vertical = 10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        contentColor = Color.White,
-                        containerColor = Color(0xFFFA7070),
-                    ),
-                ) { Text("Cancel") }
+                    onClick = onDecline,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC0000)),
+                ) { Text("Decline", color = Color.White) }
 
                 Button(
                     onClick = onAccept,
-                    modifier = Modifier.padding(vertical = 10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        contentColor = Color.White,
-                        containerColor = Color(0xFFFA7070),
-                    ),
-                ) { Text("Accept") }
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                ) { Text("Accept", color = Color.White) }
             }
         }
     }
@@ -399,9 +292,19 @@ fun DialogForIncomingRequest(
 
 @Preview(showBackground = true)
 @Composable
-fun GreetingPreview() {
+fun ConnectScreenPreview() {
     FiletransferappTheme {
-        val state = remember { MainScreenState.forPreview() }
-        HomeScreenContent(state = state)
+        ConnectScreen(state = MainScreenState(isConnectedToServer = true, connectedAs = "P6"), dispatchAction = {})
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun InCallScreenPreview() {
+    FiletransferappTheme {
+        InCallScreen(
+            state = MainScreenState(isRtcEstablished = true, connectedToPeer = "Moto", isMuted = false, isSpeakerOn = true),
+            dispatchAction = {},
+        )
     }
 }
